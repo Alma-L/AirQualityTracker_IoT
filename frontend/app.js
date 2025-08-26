@@ -1,4 +1,4 @@
-const API_BASE = "http://localhost:5000/api";
+const API_BASE = "/api";  // same origin, avoids CORS
 
 async function fetchJSON(url) {
   const res = await fetch(url);

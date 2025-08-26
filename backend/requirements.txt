@@ -1,6 +1,18 @@
+# Web API
+fastapi==0.111.0
+uvicorn[standard]==0.30.0
+
+# Database
+scylla-driver==3.29.4   # drop-in replacement for cassandra-driver, works with Python 3.12+
+# cassandra-driver==3.29.2  # use this only if scylla-driver isn't available
+
+# Data pipeline
 pyspark==3.5.1
 kafka-python==2.0.2
-cassandra-driver==3.29.2
+
+# Flask (optional, if you keep legacy microservices)
 Flask==3.0.3
 flask-cors==4.0.1
+
+# Utilities
 python-dotenv==1.0.1
