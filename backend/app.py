@@ -1,166 +1,51 @@
-import os
-os.environ["CASSANDRA_DRIVER_EVENT_LOOP"] = "gevent"
+import time
+import math
+import random
+import requests
+from datetime import datetime
 
-from fastapi import FastAPI, Query, HTTPException
-from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from typing import List
-from datetime import datetime, timedelta
-from random import uniform
-import asyncio
+API_URL = "http://localhost:8000/api/sensors"
 
-from .db_connection import get_cluster_session, init_db
+# Virtual sensor config
+SENSOR_ID = "sensor-virtual-1"
+BASELINES = {"pm2_5": 25, "pm10": 40, "temperature": 24, "humidity": 55}
 
-app = FastAPI(title="IoT API (Cassandra)", version="4.0.0")
+def diurnal_variation(base: float, amplitude: float, hour: int) -> float:
+    return base + amplitude * math.sin((2 * math.pi / 24) * hour)
 
-# Enable CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Serve frontend
-frontend_dir = os.path.join(os.path.dirname(__file__), "..", "frontend")
-app.mount("/static", StaticFiles(directory=frontend_dir), name="static")
-
-@app.get("/", include_in_schema=False)
-def serve_index():
-    return FileResponse(os.path.join(frontend_dir, "index.html"))
-
-# Pydantic model
-class SensorReading(BaseModel):
-    sensor_id: str
-    timestamp: datetime
-    pm2_5: float
-    pm10: float
-    temperature: float
-    humidity: float
-
-# Cassandra cluster/session
-cluster = None
-session = None
-
-@app.on_event("startup")
-async def startup_event():
-    global cluster, session
-    cluster, session = get_cluster_session()
-    init_db(session)
-
-    # Seed fake data if empty
-    rows = session.execute("SELECT COUNT(*) FROM sensor_readings")
-    if rows.one().count == 0:
-        for sid in ["sensor-1", "sensor-2", "sensor-3"]:
-            simulate_readings(sid, count=10)
-
-    # Start background simulator
-    asyncio.create_task(background_simulator())
-
-@app.on_event("shutdown")
-def shutdown_event():
-    global cluster
-    if cluster:
-        cluster.shutdown()
-
-# --- API endpoints ---
-@app.get("/api/sensors/latest", response_model=List[SensorReading])
-def get_latest():
-    results = []
-    sensors = session.execute("SELECT DISTINCT sensor_id FROM sensor_readings")
-    for row in sensors:
-        rows = session.execute(
-            "SELECT * FROM sensor_readings WHERE sensor_id=%s LIMIT 1",
-            [row.sensor_id]
-        )
-        for r in rows:
-            results.append({
-                "sensor_id": r.sensor_id,
-                "timestamp": r.ts,
-                "pm2_5": r.pm2_5,
-                "pm10": r.pm10,
-                "temperature": r.temperature,
-                "humidity": r.humidity,
-            })
-    return results
-
-@app.get("/api/sensors/{sensor_id}/recent", response_model=List[SensorReading])
-def get_recent(sensor_id: str, limit: int = Query(20, ge=1, le=500)):
-    rows = session.execute(
-        "SELECT * FROM sensor_readings WHERE sensor_id=%s LIMIT %s",
-        (sensor_id, limit)
-    )
-    return [
-        {
-            "sensor_id": r.sensor_id,
-            "timestamp": r.ts,
-            "pm2_5": r.pm2_5,
-            "pm10": r.pm10,
-            "temperature": r.temperature,
-            "humidity": r.humidity,
-        }
-        for r in rows
-    ]
-
-@app.post("/api/sensors/{sensor_id}", status_code=201)
-def add_reading(sensor_id: str, reading: SensorReading):
-    if reading.sensor_id != sensor_id:
-        raise HTTPException(status_code=400, detail="sensor_id mismatch")
-    session.execute(
-        """
-        INSERT INTO sensor_readings (sensor_id, ts, pm2_5, pm10, temperature, humidity)
-        VALUES (%s, %s, %s, %s, %s, %s)
-        """,
-        (reading.sensor_id, reading.timestamp, reading.pm2_5,
-         reading.pm10, reading.temperature, reading.humidity)
-    )
-    return {"status": "ok"}
-
-@app.post("/api/simulate/{sensor_id}", status_code=201)
-def simulate_readings(sensor_id: str, count: int = Query(10, ge=1, le=100)):
-    """
-    Insert N fake readings for a sensor (for testing UI without real IoT devices).
-    """
+def generate_reading():
     now = datetime.utcnow()
-    for i in range(count):
-        ts = now - timedelta(seconds=i * 10)  # spaced by 10s
-        pm2_5 = round(uniform(5, 50), 2)
-        pm10 = round(uniform(10, 100), 2)
-        temperature = round(uniform(15, 35), 2)
-        humidity = round(uniform(30, 70), 2)
+    hour = now.hour
 
-        session.execute(
-            """
-            INSERT INTO sensor_readings (sensor_id, ts, pm2_5, pm10, temperature, humidity)
-            VALUES (%s, %s, %s, %s, %s, %s)
-            """,
-            (sensor_id, ts, pm2_5, pm10, temperature, humidity)
-        )
+    pm2_5 = round(random.gauss(BASELINES["pm2_5"], 5), 2)
+    pm10 = round(random.gauss(BASELINES["pm10"], 8), 2)
+    temperature = round(diurnal_variation(BASELINES["temperature"], 5, hour) + random.gauss(0, 0.5), 2)
+    humidity = round(diurnal_variation(BASELINES["humidity"], 10, (hour + 6) % 24) + random.gauss(0, 2), 2)
 
-    return {"status": "ok", "inserted": count}
+    # occasional pollution spikes
+    if random.random() < 0.05:
+        pm2_5 += random.randint(20, 50)
+        pm10 += random.randint(30, 80)
 
-# --- Background simulator for multiple sensors ---
-async def background_simulator():
-    """
-    Keeps inserting fake data for multiple sensors every 30 seconds.
-    """
-    sensor_ids = ["sensor-1", "sensor-2", "sensor-3"]
+    return {
+        "sensor_id": SENSOR_ID,
+        "timestamp": now.isoformat(),
+        "pm2_5": pm2_5,
+        "pm10": pm10,
+        "temperature": temperature,
+        "humidity": humidity
+    }
+
+def main():
     while True:
-        ts = datetime.utcnow()
-        for sid in sensor_ids:
-            pm2_5 = round(uniform(5, 50), 2)
-            pm10 = round(uniform(10, 100), 2)
-            temperature = round(uniform(15, 35), 2)
-            humidity = round(uniform(30, 70), 2)
+        reading = generate_reading()
+        try:
+            r = requests.post(f"{API_URL}/{SENSOR_ID}", json=reading)
+            print(f"[{datetime.utcnow()}] Sent: {reading} -> {r.status_code}")
+        except Exception as e:
+            print("Error sending data:", e)
 
-            session.execute(
-                """
-                INSERT INTO sensor_readings (sensor_id, ts, pm2_5, pm10, temperature, humidity)
-                VALUES (%s, %s, %s, %s, %s, %s)
-                """,
-                (sid, ts, pm2_5, pm10, temperature, humidity)
-            )
-        await asyncio.sleep(30)
+        time.sleep(30)  # send every 30s
+
+if __name__ == "__main__":
+    main()

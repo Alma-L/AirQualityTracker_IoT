@@ -1,9 +1,14 @@
-const API_BASE = "/api";  // same origin, avoids CORS
+const API_BASE = "http://localhost:8000/api";  // Backend server URL
 
 async function fetchJSON(url) {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  } catch (err) {
+    console.error('Fetch error:', err);
+    throw new Error(`Connection failed: ${err.message}`);
+  }
 }
 
 async function loadLatest() {

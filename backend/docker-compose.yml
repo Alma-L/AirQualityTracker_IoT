@@ -1,17 +1,204 @@
 version: '3.8'
+
 services:
+  # Zookeeper for Kafka
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.0
+    container_name: zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    networks:
+      - airq-network
+
+  # Kafka Message Broker
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    container_name: kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+    networks:
+      - airq-network
+
+  # Cassandra Database
   cassandra:
     image: cassandra:4.1
     container_name: cassandra
     ports:
-      - "9042:9042"   # CQL port
+      - "9042:9042"
     environment:
-      - CASSANDRA_CLUSTER_NAME=TestCluster
-      - CASSANDRA_START_RPC=true
-      - MAX_HEAP_SIZE=512M
-      - HEAP_NEWSIZE=100M
+      - CASSANDRA_CLUSTER_NAME=AirQualityCluster
+      - CASSANDRA_DC=datacenter1
+      - CASSANDRA_ENDPOINT_SNITCH=GossipingPropertyFileSnitch
+      - MAX_HEAP_SIZE=1G
+      - HEAP_NEWSIZE=200M
+    volumes:
+      - cassandra-data:/var/lib/cassandra
+      - ./cassandra/init-scripts:/docker-entrypoint-initdb.d
+    networks:
+      - airq-network
     healthcheck:
-      test: ["CMD-SHELL", "cqlsh -e 'DESCRIBE keyspaces'"]
-      interval: 20s
+      test: ["CMD-SHELL", "cqlsh -e 'describe keyspaces'"]
+      interval: 30s
       timeout: 10s
       retries: 10
+
+  # Spark Master
+  spark-master:
+    image: bitnami/spark:3.4
+    container_name: spark-master
+    environment:
+      - SPARK_MODE=master
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+    ports:
+      - "8080:8080"
+      - "7077:7077"
+    networks:
+      - airq-network
+
+  # Spark Worker
+  spark-worker:
+    image: bitnami/spark:3.4
+    container_name: spark-worker
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark-master:7077
+      - SPARK_WORKER_MEMORY=2G
+      - SPARK_WORKER_CORES=2
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+    depends_on:
+      - spark-master
+    networks:
+      - airq-network
+
+  # Enhanced Air Quality Sensors
+  air-quality-sensors:
+    build: ./sensors
+    container_name: air-quality-sensors
+    depends_on:
+      - kafka
+    environment:
+      - KAFKA_BROKER=kafka:29092
+      - SENSOR_COUNT=50
+      - UPDATE_INTERVAL=30
+      - LOCATION=kosovo
+    networks:
+      - airq-network
+    restart: unless-stopped
+
+  # Kafka Topic Creator
+  kafka-topics:
+    image: confluentinc/cp-kafka:7.4.0
+    container_name: kafka-topics
+    depends_on:
+      - kafka
+    command: >
+      bash -c "
+        echo 'Waiting for Kafka...' &&
+        sleep 30 &&
+        kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --replication-factor 1 --partitions 3 --topic air-quality-data &&
+        kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --replication-factor 1 --partitions 1 --topic air-quality-alerts &&
+        kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --replication-factor 1 --partitions 1 --topic weather-data &&
+        echo 'Topics created' &&
+        sleep infinity
+      "
+    networks:
+      - airq-network
+
+  # Kafka Consumer
+  kafka-consumer:
+    build: ./kafka/consumer
+    container_name: kafka-consumer
+    depends_on:
+      - kafka
+      - cassandra
+      - kafka-topics
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - KAFKA_TOPIC=air-quality-data
+      - CASSANDRA_HOSTS=cassandra
+      - CASSANDRA_KEYSPACE=air_quality_monitoring
+    networks:
+      - airq-network
+    restart: unless-stopped
+
+  # Spark Streaming
+  spark-streaming:
+    build: ./spark
+    container_name: spark-streaming
+    depends_on:
+      - spark-master
+      - kafka
+      - cassandra
+    environment:
+      - SPARK_MASTER=spark://spark-master:7077
+      - KAFKA_BROKER=kafka:29092
+      - CASSANDRA_HOST=cassandra
+      - KAFKA_TOPIC=air-quality-data
+    networks:
+      - airq-network
+    restart: unless-stopped
+
+  # Web Interface (optimized multi-stage build)
+  web-interface:
+    build: 
+      context: ./web-interface
+      dockerfile: Dockerfile
+      args:
+        NODE_ENV: production
+    container_name: web-interface
+    ports:
+      - "3000:3000"
+    depends_on:
+      cassandra:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+    environment:
+      - CASSANDRA_HOST=cassandra
+      - KAFKA_BROKER=kafka:29092
+      - PORT=3000
+      - NODE_ENV=production
+      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID}
+      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN}
+      - TWILIO_PHONE_NUMBER=${TWILIO_PHONE_NUMBER}
+      - ALERT_PHONE_NUMBERS=${ALERT_PHONE_NUMBERS}
+      - WEATHER_API_KEY=${WEATHER_API_KEY}
+    env_file:
+      - .env
+    networks:
+      - airq-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
+
+volumes:
+  cassandra-data:
+
+networks:
+  airq-network:
+    driver: bridge
