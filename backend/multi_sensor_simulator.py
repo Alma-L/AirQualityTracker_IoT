@@ -38,7 +38,32 @@ SENSORS = {
         "variation": {"pm2_5": 4, "pm10": 8, "temperature": 2, "humidity": 6},
         "pollution_factor": 0.8,  # Cleaner air in residential areas
         "daily_patterns": True
-    }
+    },
+    "sensor-bus-1": {
+        "type": "Mobile",
+        "location": "City Bus Route",
+        "baselines": {"pm2_5": 30, "pm10": 50, "temperature": 25, "humidity": 50},
+        "variation": {"pm2_5": 12, "pm10": 18, "temperature": 3, "humidity": 5},
+        "pollution_factor": 1.5,
+        "mobile_patterns": True  
+    },
+    "sensor-wearable-1": {
+        "type": "Wearable",
+        "location": "Cyclist / Pedestrian",
+        "baselines": {"pm2_5": 20, "pm10": 30, "temperature": 24, "humidity": 55},
+        "variation": {"pm2_5": 8, "pm10": 12, "temperature": 2, "humidity": 4},
+        "pollution_factor": 1.2,
+        "mobile_patterns": True 
+    },
+    "sensor-drone-1": {
+        "type": "Drone",
+        "location": "Aerial / City Monitoring",
+        "baselines": {"pm2_5": 25, "pm10": 40, "co": 0.8, "no2": 20, "o3": 15, "temperature": 22, "humidity": 50},
+        "variation": {"pm2_5": 10, "pm10": 12, "co": 0.2, "no2": 5, "o3": 5, "temperature": 2, "humidity": 5},
+        "pollution_factor": 1.3,
+        "mobile_patterns": True,  
+        "flight_patterns": True  
+}
 }
 
 def diurnal_variation(base: float, amplitude: float, hour: int) -> float:

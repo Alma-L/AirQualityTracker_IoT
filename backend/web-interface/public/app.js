@@ -69,25 +69,31 @@ function getAQIClass(aqi) {
     return 'aqi-hazardous';
 }
 
-// Get sensor icon based on type
 function getSensorIcon(sensorType) {
-    switch(sensorType) {
-        case 'Urban': return '🏙️';
-        case 'Industrial': return '🏭';
-        case 'Residential': return '🏘️';
+    switch(sensorType.toLowerCase()) {
+        case 'urban': return '🏙️';
+        case 'industrial': return '🏭';
+        case 'residential': return '🏘️';
+        case 'mobile': return '🚌';         
+        case 'wearable': return '🚶‍♂️';     
+        case 'drone': return '🚁';       
         default: return '📡';
     }
 }
 
-// Get sensor color based on type
+
 function getSensorColor(sensorType) {
-    switch(sensorType) {
-        case 'Urban': return 'urban-sensor';
-        case 'Industrial': return 'industrial-sensor';
-        case 'Residential': return 'residential-sensor';
+    switch(sensorType.toLowerCase()) {
+        case 'urban': return 'urban-sensor';
+        case 'industrial': return 'industrial-sensor';
+        case 'residential': return 'residential-sensor';
+        case 'mobile': return 'mobile-sensor';
+        case 'wearable': return 'wearable-sensor';
+        case 'drone': return 'drone-sensor';
         default: return 'default-sensor';
     }
 }
+
 
 // Load main statistics
 async function loadStats() {
@@ -149,7 +155,17 @@ function updateSensorList(sensors) {
         } else if (sensorId.includes('residential')) {
             sensorType = 'Residential';
             location = 'Suburban Area';
+        } else if (sensorId.includes('bus')) {
+            sensorType = 'Mobile';
+            location = 'City Bus Route';
+        } else if (sensorId.includes('wearable')) {
+            sensorType = 'Wearable';
+            location = 'Cyclist / Pedestrian';
+        } else if (sensorId.includes('drone')) {
+            sensorType = 'Drone';
+            location = 'Aerial / City Monitoring';
         }
+
         
         sensorElement.innerHTML = `
             <span class="sensor-icon">${getSensorIcon(sensorType)}</span>

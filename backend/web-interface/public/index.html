@@ -1,31 +1,31 @@
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <title>Air Quality Tracker IoT v2.0 - Advanced Monitoring</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="stylesheet" href="/static/style.css" />
+  <link rel="icon" type="image/png" href="/static/favicon.png" />
 </head>
 <body>
-  <!-- Connection Status Indicator -->
-  <div id="connectionStatus" class="connection-status status-warning">Checking...</div>
-  
-  <div class="container">
-  <header>
-    <h1>🌍 Air Quality Tracker IoT v2.0 - Advanced Monitoring</h1>
-    <div class="header-status">
-      <div class="connection-status">
-        <span>Status: </span>
-        <span id="connectionStatus">Connecting...</span>
-      </div>
-      <div class="air-quality-status">
-        <span id="overallAirQuality">Loading...</span>
-      </div>
-    </div>
-  </header>
 
-  <main>
-    <!-- Enhanced System Statistics -->
-    <section class="card stats-card">
+  <nav class="sidebar">
+    <h1>Air Quality Tracker</h1>
+    <a href="#stats">📊 Statistics</a>
+    <a href="#latest">📡 Latest Readings</a>
+    <a href="#analytics">📈 Analytics</a>
+    <a href="#recent">📋 Recent Readings</a>
+    <a href="#alerts">🚨 Alerts</a>
+    <a href="#health">🏥 System Health</a>
+  </nav>
+
+  <div class="container">
+
+    <!-- Connection Status Indicator -->
+    <div id="connectionBanner" class="connection-status status-warning">Checking connection...</div>
+
+    <!-- System Statistics -->
+    <section class="card stats-card" id="stats">
       <h2>📊 System Statistics</h2>
       <div class="stats-grid">
         <div class="stat-item">
@@ -49,8 +49,7 @@
           <span id="averageAQI" class="stat-value">Loading...</span>
         </div>
       </div>
-      
-      <!-- Sensor List Section -->
+
       <div class="sensor-list">
         <h3>📡 Active Sensors</h3>
         <div id="sensorList">
@@ -59,15 +58,17 @@
       </div>
     </section>
 
-    <!-- Latest Readings with AQI -->
-    <section class="card">
+    <!-- Latest Readings -->
+    <section class="card" id="latest">
       <h2>📡 Latest Readings (All Sensors) - Enhanced with AQI</h2>
       <button id="refresh">🔄 Refresh</button>
-      <div id="latest" class="grid"></div>
+      <button id="exportCSV">📥 Export CSV</button>
+      <div class="grid" id="latestGrid"></div>
+      
     </section>
 
     <!-- Analytics Dashboard -->
-    <section class="card analytics-card">
+    <section class="card analytics-card" id="analytics">
       <h2>📈 Advanced Analytics Dashboard</h2>
       <div class="analytics-controls">
         <label for="analytics-sensor">Sensor ID:</label>
@@ -82,15 +83,15 @@
         </select>
         <button id="load-analytics">📊 Load Analytics</button>
       </div>
-      <div id="analytics" class="analytics-content">
+      <div id="analyticsContent" class="analytics-content">
         <p>Select a sensor and time period to view detailed analytics</p>
       </div>
     </section>
 
-    <!-- Recent Readings with AQI -->
-    <section class="card">
+    <!-- Recent Readings -->
+    <section class="card recent-card" id="recent">
       <h2>📋 Recent Readings (One Sensor) - Enhanced with AQI</h2>
-      <form id="sensor-form">
+      <form id="sensor-form" class="sensor-form">
         <input id="sensor-id" placeholder="sensor-virtual-1" />
         <input id="limit" type="number" min="1" max="500" value="20" />
         <button type="submit">📊 Load</button>
@@ -110,16 +111,16 @@
       </table>
     </section>
 
-    <!-- Real-time Alerts -->
-    <section class="card alerts-card">
+    <!-- Alerts -->
+    <section class="card alerts-card" id="alerts">
       <h2>🚨 Real-time Alerts & Notifications</h2>
-      <div id="alerts" class="alerts-container">
+      <div id="alertsContainer" class="alerts-container">
         <p class="no-alerts">No active alerts</p>
       </div>
     </section>
 
     <!-- System Health -->
-    <section class="card health-card">
+    <section class="card health-card" id="health">
       <h2>🏥 System Health & Performance</h2>
       <div class="health-grid">
         <div class="health-item">
@@ -140,13 +141,13 @@
         </div>
       </div>
     </section>
-  </main>
+
+  </div>
 
   <footer>
     <small>Backend: http://localhost:8000 | Version 2.0 | Real-time updates via WebSocket | AQI & Analytics</small>
   </footer>
 
-<link rel="stylesheet" href="/static/style.css" />
-<script src="/static/app.js"></script>
+  <script src="/static/app.js"></script>
 </body>
 </html>

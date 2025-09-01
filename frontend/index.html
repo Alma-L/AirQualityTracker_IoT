@@ -6,20 +6,29 @@
   <link rel="stylesheet" href="/static/style.css" />
 </head>
 <body>
-  <header>
-    <h1>Air Quality Tracker (Virtual Sensors)</h1>
-  </header>
+  <!-- Side Navbar -->
+  <nav class="sidebar">
+    <h1>Air Quality Tracker</h1>
+    <a href="#latest">📡 Latest Readings</a>
+    <a href="#recent">📋 Recent Readings</a>
+    <a href="#alerts">⚠️ Alerts</a>
+    <a href="#analytics">📊 Analytics</a>
+    <a href="#settings">⚙️ Settings</a>
+  </nav>
 
   <main>
-    <section class="card">
-      <h2>Latest Readings (All Sensors)</h2>
-      <button id="refresh">Refresh</button>
-      <div id="latest" class="grid"></div>
-    </section>
+    <!-- Latest Sensor Tiles -->
+<section class="card" id="latest-section">
+  <h2>Latest Readings (All Sensors)</h2>
+  <button id="refresh">Refresh</button>
+  <div id="latest-grid" class="grid"></div> <!-- Unique ID -->
+</section>
 
-    <section class="card">
+
+    <!-- Recent Sensor Table -->
+    <section class="card" id="recent">
       <h2>Recent Readings (One Sensor)</h2>
-      <form id="sensor-form">
+      <form id="sensor-form" class="sensor-form">
         <input id="sensor-id" placeholder="sensor-1" />
         <input id="limit" type="number" min="1" max="500" value="20" />
         <button type="submit">Load</button>
@@ -43,7 +52,6 @@
     <small>Backend: http://127.0.0.1:5000</small>
   </footer>
 
-<link rel="stylesheet" href="/static/style.css" />
-<script src="/static/app.js"></script>
+  <script src="/static/app.js"></script>
 </body>
 </html>

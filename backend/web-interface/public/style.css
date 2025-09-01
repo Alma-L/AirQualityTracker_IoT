@@ -5,16 +5,88 @@
   box-sizing: border-box;
 }
 
+/* ---------------- Sidebar as Header ---------------- */
+nav.sidebar {
+  position: fixed; 
+  top: 0;
+  left: 0;
+  width: 260px; 
+  height: 100vh;
+  z-index: 1000;
+  background: linear-gradient(145deg, #5161ca, #928dab);
+}
+.container {
+  margin-left: 260px;
+  padding: 2rem;      
+}
+
+/* Logo / Title */
+nav.sidebar h1 {
+  font-size: 1.8rem;
+  color: #fffbf7;
+  font-family: 'Lucida Sans', 'Lucida Sans Regular', 'Lucida Grande', 'Lucida Sans Unicode', Geneva, Verdana, sans-serif;
+  margin-top: 10px;
+  margin-bottom: 2rem;
+  text-align: center;
+  letter-spacing: 1px;
+}
+
+/* Navbar links */
+nav.sidebar a {
+  display: flex;
+  align-items: center;
+  width: 90%;
+  padding: 12px 18px;
+  margin: 5px 6px 0;
+  color: #fff;
+  text-decoration: none;
+  border-radius: 12px;
+  font-weight: 500;
+  background: rgba(255,255,255,0.05);
+  transition: all 0.3s ease;
+}
+
+nav.sidebar a:hover {
+  background: rgba(255,255,255,0.2);
+  transform: translateX(6px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+nav.sidebar a.active {
+  background: rgba(255,255,255,0.3);
+  font-weight: bold;
+}
+
+/* Responsive: collapse sidebar */
+@media (max-width: 768px) {
+  nav.sidebar {
+    width: 70px;
+    padding: 1rem 0.5rem;
+  }
+  nav.sidebar h1 {
+    display: none; 
+  }
+  nav.sidebar a {
+    justify-content: center;
+    padding: 12px 0;
+    font-size: 0.95rem;
+  }
+    .container {
+    margin-left: 70px;
+    padding: 1rem;
+  }
+}
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   line-height: 1.6;
-  color: #333;
+  color: #a39a9a;
   background: #f5f7fa;
 }
 
 /* Header styles */
 header {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #667eea 0%, #e3dbeb 100%);
   color: white;
   padding: 2rem;
   text-align: center;
@@ -34,7 +106,7 @@ header h1 {
 }
 
 .connection-status, .air-quality-status {
-  background: rgba(255,255,255,0.1);
+  background: rgba(243, 235, 235, 0.1);
   padding: 0.5rem 1rem;
   border-radius: 20px;
   backdrop-filter: blur(10px);
@@ -57,7 +129,7 @@ main {
 }
 
 .card h2 {
-  color: #2d3748;
+  color: #4c6899;
   margin-bottom: 1.5rem;
   font-size: 1.5rem;
   display: flex;
@@ -499,17 +571,17 @@ footer {
 }
 
 /* Analytics Dashboard */
-.analytics-card { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+.analytics-card { color: black;}
 .analytics-controls { display: flex; gap: 15px; align-items: center; margin-bottom: 20px; flex-wrap: wrap; }
 .analytics-controls label { font-weight: bold; }
 .analytics-controls input, .analytics-controls select { padding: 8px; border-radius: 4px; border: none; }
-.analytics-controls button { padding: 8px 16px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; }
+.analytics-controls button { padding: 8px 16px; background: #4CAF50; color: rgb(16, 11, 11); border: none; border-radius: 4px; cursor: pointer; }
 .analytics-controls button:hover { background: #45a049; }
 
 .analytics-content { margin-top: 20px; }
 .analytics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 20px; }
 .analytics-card { background: rgba(255, 255, 255, 0.1); padding: 20px; border-radius: 8px; }
-.analytics-card h4 { margin: 0 0 15px 0; color: #fff; }
+.analytics-card h4 { margin: 0 0 15px 0; color: #090505; }
 .stat-row { display: flex; justify-content: space-between; margin: 8px 0; }
 .stat-row .value { font-weight: bold; color: #4CAF50; }
 .analytics-summary { background: rgba(255, 255, 255, 0.1); padding: 15px; border-radius: 8px; }

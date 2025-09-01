@@ -3,12 +3,46 @@ import math
 import random
 import requests
 from datetime import datetime
+from fastapi import APIRouter, Response
+from cassandra.cluster import Cluster
+import csv
+import io
+
 
 API_URL = "http://localhost:8000/api/sensors"
 
 # Virtual sensor config
 SENSOR_ID = "sensor-virtual-1"
 BASELINES = {"pm2_5": 25, "pm10": 40, "temperature": 24, "humidity": 55}
+
+router = APIRouter()
+@router.get("/save_csv")
+def save_csv():
+    """
+    Save the latest sensor readings from Cassandra to a CSV file.
+    """
+    cluster = Cluster(["127.0.0.1"])
+    session = cluster.connect("air_quality_monitoring")
+
+    query = "SELECT sensor_id, timestamp, pm2_5, pm10, temperature_celsius, humidity_percent FROM air_quality_data"
+    rows = session.execute(query)
+
+    csv_file_path = "latest_readings.csv"
+    with open(csv_file_path, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["sensor_id", "timestamp", "pm2_5", "pm10", "temperature", "humidity"])
+        for row in rows:
+            writer.writerow([
+                row.sensor_id,
+                row.timestamp,
+                row.pm2_5,
+                row.pm10,
+                row.temperature_celsius,
+                row.humidity_percent
+            ])
+    return {"status": "ok", "file": csv_file_path}
+
+
 
 def diurnal_variation(base: float, amplitude: float, hour: int) -> float:
     return base + amplitude * math.sin((2 * math.pi / 24) * hour)
