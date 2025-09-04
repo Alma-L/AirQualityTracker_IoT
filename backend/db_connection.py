@@ -1,6 +1,5 @@
-# backend/db_connection.py
 from cassandra.cluster import Cluster
-from cassandra.io.asyncioreactor import AsyncioConnection    # ✅ use asyncio instead
+from cassandra.io.asyncioreactor import AsyncioConnection  
 
 KEYSPACE = "iot_data"
 
@@ -8,7 +7,7 @@ def get_cluster_session():
     cluster = Cluster(
         contact_points=["127.0.0.1"],
         port=9042,
-        connection_class=AsyncioConnection   # ✅ use asyncio instead of asyncore
+        connection_class=AsyncioConnection   
     )
     session = cluster.connect()
     return cluster, session

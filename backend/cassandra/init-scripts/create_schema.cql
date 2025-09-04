@@ -50,3 +50,5 @@ CREATE TABLE IF NOT EXISTS air_quality_aggregates (
     total_readings int,
     PRIMARY KEY (sensor_id, window_start)
 ) WITH CLUSTERING ORDER BY (window_start DESC);
+
+ALTER TABLE air_quality_alerts ADD is_active boolean;

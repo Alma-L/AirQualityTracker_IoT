@@ -1,3 +1,4 @@
+from turtle import pd
 from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -5,6 +6,11 @@ from fastapi.responses import FileResponse, RedirectResponse
 import os
 from datetime import datetime, timedelta
 import json
+from ml_algorithms import run_ml_algorithm 
+from requests import session
+from fastapi import Query, HTTPException
+from datetime import datetime, timedelta
+import pandas as pd
 
 app = FastAPI(title="Air Quality Tracker IoT", version="2.0.0")
 
@@ -160,7 +166,8 @@ def add_sensor_reading(sensor_id: str, reading: dict):
             **alert,
             "sensor_id": sensor_id,
             "timestamp": datetime.utcnow().isoformat(),
-            "location": "IoT Sensor Network"
+            "location": "IoT Sensor Network",
+            "status": "active"
         }
         alerts_history.append(alert_data)
     
@@ -220,9 +227,11 @@ def get_stats():
     }
 
 @app.get("/api/alerts")
-def get_alerts(limit: int = 50):
-    """Get recent alerts"""
-    return alerts_history[-limit:] if alerts_history else []
+def get_alerts(limit: int = 10):
+    """Return recent active alerts from in-memory history"""
+    active_alerts = [a for a in alerts_history if a.get("status") == "active"]
+    return list(reversed(active_alerts))[:limit]
+
 
 @app.get("/api/analytics/{sensor_id}")
 def get_sensor_analytics(sensor_id: str, hours: int = 24):
@@ -270,6 +279,92 @@ def get_sensor_analytics(sensor_id: str, hours: int = 24):
         },
         "trend": "stable"  # Simplified trend calculation
     }
+
+
+SUPPORTED_ALGORITHMS = ["random-forest", "svm", "kmeans"]
+
+@app.get("/api/ml-analysis")
+def ml_analysis(
+    sensor: str = Query(...),
+    algorithm: str = Query("random-forest"),
+    hours: int = Query(24)
+):
+    """Run ML analysis for a sensor over a time period (hours)."""
+    if algorithm.lower() not in SUPPORTED_ALGORITHMS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Algorithm '{algorithm}' not supported. Choose from {SUPPORTED_ALGORITHMS}"
+        )
+
+    if sensor not in sensors_data:
+        return {"error": f"Sensor '{sensor}' not found", "anomalies": []}
+
+    cutoff = datetime.utcnow() - timedelta(hours=hours)
+    readings = [
+        r for r in sensors_data[sensor]
+        if datetime.fromisoformat(r["timestamp"].replace("Z", "+00:00")) >= cutoff
+    ]
+    if not readings:
+        return {"error": "No data available for this sensor in the requested period", "anomalies": []}
+
+    df = pd.DataFrame(readings).rename(columns={"temperature": "temp"})
+
+    anomalies = run_ml_algorithm(df, algorithm=algorithm.lower())
+
+    timestamps = df['timestamp'].astype(str).tolist()
+    pm25_values = df['pm2_5'].tolist()
+    pm10_values = df['pm10'].tolist()
+    scores = [1 if ts in [a['timestamp'] for a in anomalies] else 0 for ts in timestamps]
+
+    return {
+        "sensor": sensor,
+        "algorithm": algorithm,
+        "hours": hours,
+        "total_readings": len(df),
+        "anomalies_count": len(anomalies),
+        "anomalies": anomalies,
+        "timestamps": timestamps,
+        "pm25": pm25_values,
+        "pm10": pm10_values,
+        "scores": scores
+    }
+
+
+@app.get("/api/sensors")
+def get_all_sensors():
+    """Return all sensors with type, location, and icon info for frontend"""
+    sensors_list = []
+    for sensor_id in sensors_data.keys():
+        sensor_type = "Unknown"
+        location = "Unknown"
+        if "urban" in sensor_id:
+            sensor_type = "Urban"
+            location = "City Center"
+        elif "industrial" in sensor_id:
+            sensor_type = "Industrial"
+            location = "Factory Zone"
+        elif "residential" in sensor_id:
+            sensor_type = "Residential"
+            location = "Suburban Area"
+        elif "bus" in sensor_id:
+            sensor_type = "Mobile"
+            location = "City Bus Route"
+        elif "wearable" in sensor_id:
+            sensor_type = "Wearable"
+            location = "Cyclist / Pedestrian"
+        elif "drone" in sensor_id:
+            sensor_type = "Drone"
+            location = "Aerial / City Monitoring"
+
+        sensors_list.append({
+            "id": sensor_id,
+            "type": sensor_type,
+            "location": location,
+            "img": f"/static/images/sensor_{sensor_type.lower()}.png"
+        })
+
+    return {"sensors": sensors_list}
+
 
 # WebSocket support for real-time updates
 @app.websocket("/ws")
