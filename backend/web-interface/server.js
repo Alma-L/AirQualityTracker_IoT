@@ -20,7 +20,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Configuration
 const CASSANDRA_HOST = process.env.CASSANDRA_HOST || 'localhost';
 const KAFKA_BROKER = process.env.KAFKA_BROKER || 'localhost:9092';
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 8000;
 
 // Twilio Configuration (optional)
 const TWILIO_CONFIG = {
@@ -58,7 +58,7 @@ async function connectToCassandra() {
             localDataCenter: 'datacenter1',
             keyspace: 'air_quality_monitoring'
         });
-        
+
         await cluster.connect();
         cassandraClient = cluster;
         cassandraConnected = true;
@@ -69,9 +69,60 @@ async function connectToCassandra() {
     }
 }
 
-// Initialize Kafka consumer
-let kafkaConsumer = null;
+// ------------------------------
+// Save Sensor Reading (enhanced logs)
+// ------------------------------
+async function saveReadingToCassandra(data) {
+    if (!cassandraConnected) {
+        console.warn('⚠️ Attempted to save data but Cassandra is not connected:', JSON.stringify(data, null, 2));
+        return;
+    }
 
+    try {
+        const timestamp = new Date(data.timestamp || Date.now());
+
+        const query = `
+            INSERT INTO air_quality_data (
+                sensor_id, timestamp, location_name, area_type,
+                latitude, longitude,
+                pm2_5, pm10, aqi, health_risk,
+                visibility_meters, temperature_celsius, humidity_percent,
+                weather_condition, pressure_hpa
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `;
+
+        const params = [
+            data.sensor_id,
+            timestamp,
+            data.location_name || 'Unknown',
+            data.area_type || 'Unknown',
+            data.latitude || null,
+            data.longitude || null,
+            data.pm2_5 ?? null,
+            data.pm10 ?? null,
+            data.aqi ?? 'Unknown',
+            data.health_risk ?? 'Unknown',
+            data.visibility_meters ?? null,
+            data.temperature ?? null,
+            data.humidity ?? null,
+            data.weather_condition ?? null,
+            data.pressure_hpa ?? null
+        ];
+
+
+        console.log(`💾 Saving reading for sensor ${data.sensor_id} at ${timestamp.toISOString()}`);
+        await cassandraClient.execute(query, params, { prepare: true });
+        console.log(`✅ Successfully saved data for sensor ${data.sensor_id}`);
+    } catch (error) {
+        console.error('❌ Failed to save reading to Cassandra');
+        console.error('📦 Sensor Data:', JSON.stringify(data, null, 2));
+        console.error('🛑 Error Details:', error.stack || error.message || error);
+    }
+}
+
+// ------------------------------
+// Kafka Consumer (enhanced logs)
+// ------------------------------
 function connectToKafka() {
     try {
         const consumer = new kafka.Consumer(
@@ -80,13 +131,19 @@ function connectToKafka() {
             { autoCommit: true }
         );
 
-        consumer.on('message', function (message) {
+        consumer.on('message', async (message) => {
             try {
                 const data = JSON.parse(message.value);
+                if (!data.sensor_id) {
+                    console.warn('⚠️ Kafka message missing sensor_id:', message.value);
+                    return;
+                }
+
                 console.log('📊 Received air quality data:', data.sensor_id);
-                
-                // Broadcast to all connected WebSocket clients
-                wss.clients.forEach((client) => {
+
+                await saveReadingToCassandra(data);
+
+                wss.clients.forEach(client => {
                     if (client.readyState === WebSocket.OPEN) {
                         client.send(JSON.stringify({
                             type: 'realtime_update',
@@ -95,80 +152,474 @@ function connectToKafka() {
                         }));
                     }
                 });
-                
-                // Check for alerts
-                checkAirQualityAlerts(data);
-                
-            } catch (error) {
-                console.error('Error processing Kafka message:', error);
+
+                await checkAirQualityAlerts(data);
+            } catch (err) {
+                console.error('❌ Error processing Kafka message:', err.stack || err.message || err);
+                console.error('📦 Original message:', message.value);
             }
         });
 
-        consumer.on('error', function (error) {
-            console.error('Kafka consumer error:', error);
+        consumer.on('error', error => {
+            console.error('❌ Kafka consumer error:', error.stack || error.message || error);
+            if (error.errors) {
+                error.errors.forEach((e, idx) => {
+                    console.error(`  [${idx}] Address: ${e.address}, Port: ${e.port}, Code: ${e.code}`);
+                });
+            }
         });
 
         kafkaConsumer = consumer;
         console.log('✅ Kafka consumer connected');
     } catch (error) {
-        console.error('❌ Failed to connect to Kafka:', error);
+        console.error('❌ Failed to connect to Kafka:', error.stack || error.message || error);
     }
 }
 
-// Air Quality Alert System
-function checkAirQualityAlerts(data) {
+app.post('/api/sensors/:sensorId', async (req, res) => {
+    const { sensorId } = req.params;
+    const data = req.body;
+
     try {
-        const pm2_5 = data.air_quality_data?.pm2_5 || 0;
-        const pm10 = data.air_quality_data?.pm10 || 0;
-        const aqi = data.air_quality_data?.aqi || 'Unknown';
-        const health_risk = data.air_quality_data?.health_risk || 'Unknown';
-        
+        // Save data to Cassandra
+        await saveReadingToCassandra(data); // reuse your existing function
+         await checkAirQualityAlerts(data); 
+        res.status(200).json({ message: `Data received for ${sensorId}` });
+    } catch (err) {
+        console.error('Error saving sensor data:', err);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+
+
+app.get('/api/sensors/latest', async (req, res) => {
+    if (!cassandraConnected) {
+        return res.status(503).json({ error: 'Database not connected' });
+    }
+
+    try {
+        // distinct sensor ids
+        const sensorQuery = 'SELECT DISTINCT sensor_id FROM air_quality_data';
+        const sensorRows = await cassandraClient.execute(sensorQuery);
+        const sensorIds = sensorRows.rows.map(r => r.sensor_id);
+
+        const latestReadings = [];
+        for (const sensorId of sensorIds) {
+            const query = `
+                SELECT sensor_id, timestamp, location_name, area_type, latitude, longitude,
+                       pm2_5, pm10, aqi, health_risk,
+                       temperature_celsius, humidity_percent, weather_condition, pressure_hpa
+                FROM air_quality_data
+                WHERE sensor_id = ?
+                ORDER BY timestamp DESC
+                LIMIT 1
+            `;
+            const result = await cassandraClient.execute(query, [sensorId], { prepare: true });
+            if (result.rows.length > 0) {
+                latestReadings.push(result.rows[0]);
+            }
+        }
+
+        res.json(latestReadings);
+    } catch (error) {
+        console.error('❌ Error in /api/sensors/latest:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+app.get('/api/sensors/:sensorId/recent', async (req, res) => {
+    if (!cassandraConnected) {
+        return res.status(503).json({ error: 'Database not connected' });
+    }
+
+    const { sensorId } = req.params;
+    const limit = parseInt(req.query.limit || 20, 10);
+
+    try {
+        const query = `
+            SELECT sensor_id, timestamp, pm2_5, pm10, aqi, health_risk,
+                   temperature_celsius, humidity_percent, weather_condition,
+                   location_name, area_type
+            FROM air_quality_data
+            WHERE sensor_id = ?
+            ORDER BY timestamp DESC
+            LIMIT ?
+        `;
+        const result = await cassandraClient.execute(query, [sensorId, limit], { prepare: true });
+        res.json(result.rows);
+    } catch (error) {
+        console.error('❌ Error in /api/sensors/:sensorId/recent:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+
+app.get('/api/analytics/:sensorId', async (req, res) => {
+    if (!cassandraConnected) {
+        return res.status(503).json({ error: 'Cassandra database not connected' });
+    }
+
+    const { sensorId } = req.params;
+    const hours = parseInt(req.query.hours || "24", 10);
+
+    try {
+        const cutoffTime = new Date(Date.now() - hours * 60 * 60 * 1000);
+
+        const query = `
+            SELECT pm2_5, pm10, aqi, timestamp
+            FROM air_quality_data
+            WHERE sensor_id = ? AND timestamp >= ?
+            ALLOW FILTERING
+        `;
+        const result = await cassandraClient.execute(query, [sensorId, cutoffTime], { prepare: true });
+
+        if (!result.rows.length) {
+            return res.json({ error: "No data available for this sensor in the requested period" });
+        }
+
+        // Extract readings
+        const pm25Values = result.rows.map(r => r.pm2_5).filter(v => v !== null && v !== undefined);
+        const pm10Values = result.rows.map(r => r.pm10).filter(v => v !== null && v !== undefined);
+
+        const aqiValues = result.rows
+            .map(r => {
+                if (r.aqi && r.aqi !== "Unknown") {
+                    const parsed = parseFloat(r.aqi);
+                    return isNaN(parsed) ? null : parsed;
+                }
+                return null;
+            })
+            .filter(v => v !== null);
+
+        if (!pm25Values.length || !pm10Values.length) {
+            return res.json({ error: "Insufficient data for analysis" });
+        }
+
+        res.json({
+            sensor_id: sensorId,
+            time_period_hours: hours,
+            readings_count: pm25Values.length,
+            pm25: {
+                min: Math.min(...pm25Values),
+                max: Math.max(...pm25Values),
+                average: +(pm25Values.reduce((a, b) => a + b, 0) / pm25Values.length).toFixed(2),
+            },
+            pm10: {
+                min: Math.min(...pm10Values),
+                max: Math.max(...pm10Values),
+                average: +(pm10Values.reduce((a, b) => a + b, 0) / pm10Values.length).toFixed(2),
+            },
+            aqi: {
+                min: aqiValues.length ? Math.min(...aqiValues) : 0,
+                max: aqiValues.length ? Math.max(...aqiValues) : 0,
+                average: aqiValues.length
+                    ? +(aqiValues.reduce((a, b) => a + b, 0) / aqiValues.length).toFixed(1)
+                    : 0,
+            },
+            trend: "stable" // placeholder
+        });
+
+    } catch (error) {
+        console.error("❌ Error in /api/analytics/:sensorId:", error);
+        res.status(500).json({ error: `Error fetching analytics: ${error.message}` });
+    }
+});
+
+// server.js (snippet)
+
+app.get("/api/sensors", async (req, res) => {
+  if (!cassandraConnected) {
+    return res.status(503).json({ detail: "Cassandra database not connected" });
+  }
+
+  try {
+    // Get all unique sensor IDs
+    const query = "SELECT DISTINCT sensor_id FROM air_quality_data";
+    const result = await cassandraClient.execute(query);
+    const sensorIds = result.rows.map(row => row.sensor_id);
+
+    const sensorsList = [];
+
+    for (const sensorId of sensorIds) {
+      // Get the latest reading to extract location info
+      const queryLatest = `
+        SELECT location_name, area_type 
+        FROM air_quality_data 
+        WHERE sensor_id = ? 
+        ORDER BY timestamp DESC 
+        LIMIT 1
+      `;
+      const sensorResult = await cassandraClient.execute(queryLatest, [sensorId], { prepare: true });
+
+      if (sensorResult && sensorResult.rowLength > 0) {
+        const row = sensorResult.rows[0];
+        let locationName = row.location_name || "Unknown";
+        let areaType = row.area_type || "Unknown";
+
+        // Determine sensor type
+        let sensorType = "Unknown";
+        const sensorIdLower = sensorId.toLowerCase();
+        const areaTypeLower = areaType.toLowerCase();
+
+        if (sensorIdLower.includes("urban") || areaTypeLower.includes("urban")) {
+          sensorType = "Urban";
+          locationName = "City Center";
+        } else if (sensorIdLower.includes("industrial") || areaTypeLower.includes("industrial")) {
+          sensorType = "Industrial";
+          locationName = "Factory Zone";
+        } else if (sensorIdLower.includes("residential") || areaTypeLower.includes("residential")) {
+          sensorType = "Residential";
+          locationName = "Suburban Area";
+        } else if (sensorIdLower.includes("bus")) {
+          sensorType = "Mobile";
+          locationName = "City Bus Route";
+        } else if (sensorIdLower.includes("wearable")) {
+          sensorType = "Wearable";
+          locationName = "Cyclist / Pedestrian";
+        } else if (sensorIdLower.includes("drone")) {
+          sensorType = "Drone";
+          locationName = "Aerial / City Monitoring";
+        }
+
+        sensorsList.push({
+          id: sensorId,
+          type: sensorType,
+          location_name: locationName,
+          img: `/images/sensor_${sensorType.toLowerCase()}.png`
+        });
+      }
+    }
+
+    res.json({ sensors: sensorsList });
+
+  } catch (err) {
+    console.error("❌ Error fetching sensors:", err);
+    res.status(500).json({ detail: `Error fetching sensors: ${err.message}` });
+  }
+});
+
+
+app.get('/api/stats', async (req, res) => {
+    if (!cassandraConnected) {
+        return res.status(503).json({ error: 'Database not connected' });
+    }
+
+    try {
+        // total sensors
+        const sensorRows = await cassandraClient.execute('SELECT DISTINCT sensor_id FROM air_quality_data');
+        const sensorIds = sensorRows.rows.map(r => r.sensor_id);
+        const sensorCount = sensorIds.length;
+
+        // total records
+        const totalRecordsRow = await cassandraClient.execute('SELECT COUNT(*) as count FROM air_quality_data');
+        const totalRecords = totalRecordsRow.rows[0]?.count?.toString() || "0";
+
+        // active alerts
+        const alertsRows = await cassandraClient.execute('SELECT is_active FROM air_quality_alerts');
+        const activeAlerts = alertsRows.rows.filter(r => r.is_active === true).length;
+
+        res.json({
+            sensorCount,
+            totalRecords,
+            activeAlerts,
+            uptimeSeconds: Math.floor(process.uptime()),
+            systemVersion: "2.0.0",
+            sensors: sensorIds.map(id => ({ id }))
+        });
+    } catch (error) {
+        console.error('❌ Error in /api/stats:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+const SUPPORTED_ALGORITHMS = ["random-forest", "svm", "kmeans"];
+
+app.get("/api/ml-analysis", async (req, res) => {
+  const { sensor, algorithm = "random-forest", hours = 24 } = req.query;
+  console.log("📥 Incoming ML request:", { sensor, algorithm, hours });
+
+  if (!sensor) {
+    console.warn("⚠️ No sensor parameter provided");
+    return res.status(400).json({ error: "Sensor parameter is required" });
+  }
+  if (!SUPPORTED_ALGORITHMS.includes(algorithm.toLowerCase())) {
+    console.warn(`⚠️ Unsupported algorithm requested: ${algorithm}`);
+    return res.status(400).json({
+      error: `Algorithm '${algorithm}' not supported. Choose from ${SUPPORTED_ALGORITHMS}`
+    });
+  }
+
+  try {
+    // Call the FastAPI ML service
+    console.log("🌐 Calling FastAPI ML service...");
+    const response = await axios.get("http://localhost:8002/api/ml-analysis", {
+      params: { sensor, algorithm, hours }
+    });
+
+    console.log("✅ FastAPI ML response received");
+    res.json(response.data);
+  } catch (err) {
+    console.error("🔥 Error calling FastAPI ML service:", err.message);
+    if (err.response) {
+      console.error("FastAPI status:", err.response.status, "data:", err.response.data);
+    }
+    res.status(500).json({ error: "Failed to run ML analysis" });
+  }
+});
+
+app.get("/api/alerts", async (req, res) => {
+  const limit = parseInt(req.query.limit) || 10;
+
+  if (!cassandraConnected) {
+    return res.status(503).json({ error: "Cassandra database not connected" });
+  }
+
+  try {
+    // Ensure we have an index on is_active
+    // CREATE INDEX IF NOT EXISTS idx_air_quality_alerts_is_active ON air_quality_alerts(is_active);
+
+    // Fetch all active alerts and order by timestamp descending
+    const query = `
+      SELECT * FROM air_quality_alerts WHERE is_active = true ALLOW FILTERING;`;
+
+    const result = await cassandraClient.execute(query);
+
+    // Sort by timestamp descending and take the last 'limit' alerts
+    const sortedAlerts = result.rows
+      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+      .slice(0, limit);
+
+    const alerts = sortedAlerts.map(row => ({
+      id: row.alert_id,
+      type: row.alert_type,
+      severity: row.severity,
+      message: row.message,
+      sensor_id: row.sensor_id,
+      timestamp: row.timestamp ? new Date(row.timestamp).toISOString() : null,
+      aqi_level: row.aqi_level || "Unknown",
+      status: "active",
+    }));
+
+    res.json(alerts);
+  } catch (err) {
+    console.error("❌ Error fetching alerts:", err);
+    res.status(500).json({ error: `Error fetching alerts: ${err.message}` });
+  }
+});
+
+app.listen(8001, () => {
+  console.log("Node.js server running on port 8001");
+});
+
+
+// ------------------------------
+// General error logging helper
+// ------------------------------
+function logError(context, error, extraData = null) {
+    console.error(`❌ Error in ${context}:`, error.stack || error.message || error);
+    if (extraData) {
+        console.error('📦 Additional Data:', JSON.stringify(extraData, null, 2));
+    }
+}
+
+
+async function saveAlertToCassandra(alert) {
+    if (!cassandraConnected) {
+        console.warn('⚠️ Cassandra not connected, cannot save alert:', alert);
+        return;
+    }
+    try {
+        console.log('🔔 Attempting to save alert:', alert); // <--- new log
+        const query = `
+            INSERT INTO air_quality_alerts (
+                alert_id, sensor_id, timestamp, alert_type, 
+                severity, message, aqi_level, is_active
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `;
+        const params = [
+            alert.alert_id,
+            alert.sensor_id,
+            alert.timestamp,
+            alert.alert_type,
+            alert.severity,
+            alert.message,
+            alert.aqi_level,
+            alert.is_active
+        ];
+        await cassandraClient.execute(query, params, { prepare: true });
+        console.log(`✅ Successfully saved alert: ${alert.alert_id}`);
+    } catch (error) {
+        console.error('❌ Failed to save alert to Cassandra', error);
+    }
+}
+
+async function checkAirQualityAlerts(data) {
+    try {
+        const pm2_5 = data.pm2_5 ?? 0;
+        const pm10 = data.pm10 ?? 0;
+        const aqi = data.aqi ?? 'Unknown';
+
         let alert = null;
-        
-        // Create alerts based on air quality thresholds
-        if (pm2_5 > 55.4 || pm10 > 254) {  // Unhealthy levels
+
+        if (pm2_5 > 55.4 || pm10 > 254) {
+            // HIGH
             alert = {
-                id: `alert_${Date.now()}_${data.sensor_id}`,
-                type: 'POOR_AIR_QUALITY',
+                alert_id: `alert_${Date.now()}_${data.sensor_id}`,
+                sensor_id: data.sensor_id,
+                timestamp: new Date(),
+                alert_type: 'POOR_AIR_QUALITY',
                 severity: 'HIGH',
                 message: `Poor air quality detected: PM2.5=${pm2_5}, PM10=${pm10}, AQI=${aqi}`,
-                sensor_id: data.sensor_id,
-                location: data.location?.name || 'Unknown',
-                timestamp: new Date().toISOString(),
-                aqi_level: aqi
+                aqi_level: aqi.toString(),
+                is_active: true
             };
-        } else if (pm2_5 > 35.4 || pm10 > 154) {  // Moderate levels
+        } else if (pm2_5 > 35.4 || pm10 > 154) {
+            // MEDIUM
             alert = {
-                id: `alert_${Date.now()}_${data.sensor_id}`,
-                type: 'MODERATE_AIR_QUALITY',
+                alert_id: `alert_${Date.now()}_${data.sensor_id}`,
+                sensor_id: data.sensor_id,
+                timestamp: new Date(),
+                alert_type: 'MODERATE_AIR_QUALITY',
                 severity: 'MEDIUM',
                 message: `Moderate air quality: PM2.5=${pm2_5}, PM10=${pm10}, AQI=${aqi}`,
+                aqi_level: aqi.toString(),
+                is_active: true
+            };
+        } else if (pm2_5 > 12 || pm10 > 54) {
+            // LOW
+            alert = {
+                alert_id: `alert_${Date.now()}_${data.sensor_id}`,
                 sensor_id: data.sensor_id,
-                location: data.location?.name || 'Unknown',
-                timestamp: new Date().toISOString(),
-                aqi_level: aqi
+                timestamp: new Date(),
+                alert_type: 'MILD_AIR_QUALITY',
+                severity: 'LOW',
+                message: `Slightly elevated levels: PM2.5=${pm2_5}, PM10=${pm10}, AQI=${aqi}`,
+                aqi_level: aqi.toString(),
+                is_active: true
             };
         }
-        
+
         if (alert) {
-            // Add to batch
+            console.log(`⚠️ Triggered alert for sensor ${alert.sensor_id}: ${alert.message}`);
+
+            await saveAlertToCassandra(alert);
+
             alertBatch.push(alert);
-            
-            // Broadcast alert to WebSocket clients
-            wss.clients.forEach((client) => {
+
+            // Push to WebSocket clients
+            wss.clients.forEach(client => {
                 if (client.readyState === WebSocket.OPEN) {
                     client.send(JSON.stringify({
                         type: 'alert_update',
-                        alert: alert,
+                        alert,
                         timestamp: new Date().toISOString()
                     }));
                 }
             });
-            
-            // Process batched alerts
+
             processBatchedAlerts();
         }
-        
     } catch (error) {
         console.error('❌ Error checking air quality alerts:', error);
     }
@@ -252,57 +703,40 @@ app.get('/api/health', (req, res) => {
     });
 });
 
-// Get latest readings from all sensors
+
 app.get('/api/sensors/latest', async (req, res) => {
     if (!cassandraConnected) {
         return res.status(503).json({ error: 'Database not connected' });
     }
 
     try {
-        const query = `
-            SELECT sensor_id, timestamp, location_name, area_type, 
-                   pm2_5, pm10, aqi, health_risk, 
-                   temperature_celsius, humidity_percent, weather_condition
-            FROM air_quality_data 
-            WHERE timestamp IN (
-                SELECT MAX(timestamp) 
-                FROM air_quality_data 
-                GROUP BY sensor_id
-            )
-            ALLOW FILTERING
-        `;
-        
-        const result = await cassandraClient.execute(query);
-        res.json(result.rows);
+        // 1. Get all sensor IDs from the sensors table
+        const sensorsQuery = 'SELECT sensor_id FROM air_quality_data';
+        const sensorsResult = await cassandraClient.execute(sensorsQuery);
+        const sensorIds = sensorsResult.rows.map(r => r.sensor_id);
+
+        // 2. Fetch latest reading for each sensor
+        const latestReadings = [];
+        for (const sensorId of sensorIds) {
+            const readingQuery = `
+                SELECT sensor_id, timestamp, location_name, area_type, 
+                       pm2_5, pm10, aqi, health_risk, 
+                       temperature_celsius, humidity_percent, weather_condition
+                FROM air_quality_data
+                WHERE sensor_id = ?
+                ORDER BY timestamp DESC
+                LIMIT 1
+            `;
+            const result = await cassandraClient.execute(readingQuery, [sensorId], { prepare: true });
+            if (result.rows.length > 0) {
+                latestReadings.push(result.rows[0]);
+            }
+        }
+
+        res.json(latestReadings);
+
     } catch (error) {
         console.error('Error fetching latest readings:', error);
-        res.status(500).json({ error: 'Internal server error' });
-    }
-});
-
-// Get recent readings for a specific sensor
-app.get('/api/sensors/:sensorId/recent', async (req, res) => {
-    if (!cassandraConnected) {
-        return res.status(503).json({ error: 'Database not connected' });
-    }
-
-    try {
-        const { sensorId } = req.params;
-        const limit = parseInt(req.query.limit) || 20;
-        
-        const query = `
-            SELECT timestamp, pm2_5, pm10, aqi, health_risk, 
-                   temperature_celsius, humidity_percent, weather_condition
-            FROM air_quality_data 
-            WHERE sensor_id = ? 
-            ORDER BY timestamp DESC 
-            LIMIT ?
-        `;
-        
-        const result = await cassandraClient.execute(query, [sensorId, limit]);
-        res.json(result.rows);
-    } catch (error) {
-        console.error('Error fetching sensor readings:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
 });
@@ -315,7 +749,7 @@ app.get('/api/stats', async (req, res) => {
 
     try {
         // Get basic stats
-        const sensorCountQuery = 'SELECT COUNT(DISTINCT sensor_id) as count FROM air_quality_data';
+        const sensorCountQuery = 'SELECT COUNT(*) as count FROM air_quality_data';
         const sensorCountResult = await cassandraClient.execute(sensorCountQuery);
         const sensorCount = sensorCountResult.rows[0]?.count || 0;
 
