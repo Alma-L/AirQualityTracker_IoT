@@ -18,6 +18,7 @@
       <a href="#ml-analysis">🤖 ML Analysis</a>
       <a href="#health">🏥 System Health</a>
       <a href="#sensors">🛰️ Sensors</a>
+      <a href="#smart-sensors">🌬️ Smart Virtual Sensors</a>
     </nav>
 
     <div class="container">
@@ -221,6 +222,56 @@
         <h2>🛰️ Sensors Overview</h2>
         <div class="sensors-grid" id="sensorsGrid">
           <p class="loading">Loading sensors...</p>
+        </div>
+      </section>
+
+      <!-- Smart Virtual Sensors Dashboard -->
+      <section class="card smart-sensors-card" id="smart-sensors">
+        <h2>🌬️ Air Quality Monitoring in Kosovo</h2>
+        
+        <!-- Kosovo Map -->
+        <div class="kosovo-map-container">
+          <h3>🗺️ Kosovo Air Quality Map</h3>
+          <p class="map-description">Real-time air quality monitoring across major cities in Kosovo</p>
+          
+          <div class="kosovo-map" id="kosovoMap">
+            <img src="/static/images/kosovo-map.png" 
+                 alt="Kosovo Map" 
+                 class="map-image" />
+            <div id="mapMarkers"></div>
+          </div>
+          
+          <!-- Map Statistics -->
+          <div class="map-stats">
+            <div class="map-stat-item">
+              <span class="stat-number" id="totalSensorsOnMap">8</span>
+              <span class="stat-label">Total Sensors</span>
+            </div>
+            <div class="map-stat-item">
+              <span class="stat-number" id="avgAQIOnMap">52</span>
+              <span class="stat-label">Avg AQI</span>
+            </div>
+            <div class="map-stat-item">
+              <span class="stat-number" id="citiesCovered">8</span>
+              <span class="stat-label">Cities</span>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Simple Controls -->
+        <div class="simple-controls">
+          <button id="smart-refresh" class="btn-primary">🔄 Refresh Data</button>
+          <button id="smart-export" class="btn-secondary">📊 Export CSV</button>
+        </div>
+        
+        <!-- Sensors Grid -->
+        <div class="smart-sensors-grid" id="smartSensorsGrid">
+          <!-- Smart sensor cards will be populated here -->
+        </div>
+        
+        <div class="smart-status">
+          <span class="status-indicator" id="smartStatusIndicator"></span>
+          <span id="smartLastUpdate">Last updated: Never</span>
         </div>
       </section>
     </div>

@@ -3,6 +3,27 @@ const API_BASE = "http://localhost:8000/api";
 let ws = null;
 let isConnected = false;
 
+// Missing functions that are called by WebSocket
+function updateConnectionStatus(status, type) {
+  const wsStatusElement = document.getElementById("wsStatus");
+  if (wsStatusElement) {
+    wsStatusElement.textContent = status;
+    wsStatusElement.className = `health-value ${type === 'success' ? 'success' : 'error'}`;
+  }
+}
+
+function updateRealTimeData(data) {
+  console.log("Updating real-time data:", data);
+  // This function would update the real-time data display
+  // For now, just log the data
+}
+
+function updateAlerts(alerts) {
+  console.log("Updating alerts:", alerts);
+  // This function would update the alerts display
+  // For now, just log the alerts
+}
+
 function connectWebSocket() {
   try {
     ws = new WebSocket(`ws://${window.location.host}/ws`);
@@ -15,7 +36,15 @@ function connectWebSocket() {
 
     ws.onmessage = function (event) {
       try {
-        const data = JSON.parse(event.data);
+        // Check if the message is valid JSON
+        let data;
+        try {
+          data = JSON.parse(event.data);
+        } catch (jsonError) {
+          console.log("Non-JSON WebSocket message:", event.data);
+          return; // Skip non-JSON messages
+        }
+        
         console.log("WebSocket message received:", data);
 
         if (data.type === "realtime_update") {
@@ -26,7 +55,7 @@ function connectWebSocket() {
 
         updateConnectionStatus("Connected", "success");
       } catch (error) {
-        console.error("Error parsing WebSocket message:", error);
+        console.error("Error processing WebSocket message:", error);
       }
     };
 
@@ -652,6 +681,9 @@ document.addEventListener("DOMContentLoaded", function () {
   loadStats();
   loadAlerts();
 
+  // Initialize smart sensors
+  initializeSmartSensors();
+
   setInterval(loadLatest, 10000);
   setInterval(loadStats, 10000);
   setInterval(loadAlerts, 15000);
@@ -671,3 +703,562 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   }, 60000);
 });
+
+// Smart Virtual Sensors functionality
+let smartSensorsData = {};
+let smartAutoRefreshInterval = null;
+let isSmartAutoRefresh = false;
+
+// Kosovo Smart Virtual Sensors Data - Based on Real Kosovo Map
+const sampleSmartData = {
+  "smart-prishtina-001": {
+    sensor_id: "smart-prishtina-001",
+    sensor_type: "Capital City Monitor",
+    location: "Prishtina City Center",
+    category: "urban",
+    city: "Prishtina",
+    coordinates: { x: 50, y: 40 },
+    air_quality_index: 45,
+    pm2_5: 18.5,
+    pm10: 28.2,
+    temperature: 22.3,
+    humidity: 65.1,
+    pressure: 1013.2,
+    wind_speed: 3.2,
+    wind_direction: 180,
+    battery_level: 87.5,
+    signal_strength: 85.2,
+    timestamp: new Date().toISOString()
+  },
+  "smart-peja-002": {
+    sensor_id: "smart-peja-002",
+    sensor_type: "Industrial Monitor",
+    location: "Peja Industrial Zone",
+    category: "industrial",
+    city: "Peja",
+    coordinates: { x: 20, y: 25 },
+    air_quality_index: 65,
+    pm2_5: 28.7,
+    pm10: 45.1,
+    temperature: 25.1,
+    humidity: 55.3,
+    pressure: 1012.8,
+    wind_speed: 5.1,
+    wind_direction: 225,
+    battery_level: 92.1,
+    signal_strength: 90.5,
+    timestamp: new Date().toISOString()
+  },
+  "smart-prizren-003": {
+    sensor_id: "smart-prizren-003",
+    sensor_type: "Historic City Monitor",
+    location: "Prizren Historic District",
+    category: "residential",
+    city: "Prizren",
+    coordinates: { x: 30, y: 80 },
+    air_quality_index: 35,
+    pm2_5: 15.2,
+    pm10: 25.6,
+    temperature: 20.1,
+    humidity: 70.4,
+    pressure: 1000.3,
+    wind_speed: 2.5,
+    wind_direction: 315,
+    battery_level: 95.3,
+    signal_strength: 88.7,
+    timestamp: new Date().toISOString()
+  },
+  "smart-gjakova-004": {
+    sensor_id: "smart-gjakova-004",
+    sensor_type: "Mobile Monitor",
+    location: "Gjakova Bus Route",
+    category: "mobile",
+    city: "Gjakova",
+    coordinates: { x: 15, y: 60 },
+    air_quality_index: 55,
+    pm2_5: 22.3,
+    pm10: 35.8,
+    temperature: 24.7,
+    humidity: 60.2,
+    pressure: 1013.5,
+    wind_speed: 8.3,
+    wind_direction: 270,
+    battery_level: 78.9,
+    signal_strength: 75.8,
+    timestamp: new Date().toISOString()
+  },
+  "smart-mitrovica-005": {
+    sensor_id: "smart-mitrovica-005",
+    sensor_type: "Aerial Survey",
+    location: "Mitrovica Airspace",
+    category: "aerial",
+    city: "Mitrovica",
+    coordinates: { x: 40, y: 15 },
+    air_quality_index: 40,
+    pm2_5: 15.2,
+    pm10: 25.6,
+    temperature: 20.1,
+    humidity: 70.4,
+    pressure: 1000.3,
+    wind_speed: 12.5,
+    wind_direction: 315,
+    battery_level: 65.3,
+    signal_strength: 95.7,
+    timestamp: new Date().toISOString()
+  },
+  "smart-ferizaj-006": {
+    sensor_id: "smart-ferizaj-006",
+    sensor_type: "Underground Monitor",
+    location: "Ferizaj Underground Street",
+    category: "underground",
+    city: "Ferizaj",
+    coordinates: { x: 60, y: 50 },
+    air_quality_index: 75,
+    pm2_5: 35.8,
+    pm10: 55.2,
+    temperature: 28.5,
+    humidity: 80.1,
+    pressure: 1020.7,
+    wind_speed: 0,
+    wind_direction: 0,
+    battery_level: 95.2,
+    signal_strength: 60.3,
+    timestamp: new Date().toISOString()
+  },
+  "smart-gjilan-007": {
+    sensor_id: "smart-gjilan-007",
+    sensor_type: "Urban Monitor",
+    location: "Gjilan City Center",
+    category: "urban",
+    city: "Gjilan",
+    coordinates: { x: 70, y: 30 },
+    air_quality_index: 50,
+    pm2_5: 20.1,
+    pm10: 32.4,
+    temperature: 23.8,
+    humidity: 65.7,
+    pressure: 1014.1,
+    wind_speed: 4.2,
+    wind_direction: 200,
+    battery_level: 82.6,
+    signal_strength: 70.9,
+    timestamp: new Date().toISOString()
+  },
+  "smart-vushtrri-008": {
+    sensor_id: "smart-vushtrri-008",
+    sensor_type: "Residential Monitor",
+    location: "Vushtrri Residential Area",
+    category: "residential",
+    city: "Vushtrri",
+    coordinates: { x: 35, y: 25 },
+    air_quality_index: 42,
+    pm2_5: 17.8,
+    pm10: 29.1,
+    temperature: 21.5,
+    humidity: 68.2,
+    pressure: 1012.5,
+    wind_speed: 3.8,
+    wind_direction: 190,
+    battery_level: 89.3,
+    signal_strength: 78.4,
+    timestamp: new Date().toISOString()
+  }
+};
+
+function getSmartAQIClass(aqi) {
+  if (aqi <= 50) return 'aqi-good';
+  if (aqi <= 100) return 'aqi-moderate';
+  if (aqi <= 150) return 'aqi-unhealthy';
+  return 'aqi-hazardous';
+}
+
+function getSmartBatteryClass(battery) {
+  if (battery >= 70) return 'battery-high';
+  if (battery >= 30) return 'battery-medium';
+  return 'battery-low';
+}
+
+function updateSmartStats(data) {
+  const stats = Object.values(data);
+  const totalSensors = stats.length;
+  const avgAQI = Math.round(stats.reduce((sum, s) => sum + s.air_quality_index, 0) / totalSensors);
+  const totalReadings = stats.length; // This would be actual reading count in real implementation
+  const onlineSensors = stats.filter(s => s.battery_level > 0).length;
+  const avgBattery = Math.round(stats.reduce((sum, s) => sum + s.battery_level, 0) / totalSensors);
+  
+  document.getElementById('smartStatsGrid').innerHTML = `
+    <div class="smart-stat-card">
+      <div class="smart-stat-value">${totalSensors}</div>
+      <div class="smart-stat-label">Total Sensors</div>
+    </div>
+    <div class="smart-stat-card">
+      <div class="smart-stat-value">${avgAQI}</div>
+      <div class="smart-stat-label">Average AQI</div>
+    </div>
+    <div class="smart-stat-card">
+      <div class="smart-stat-value">${onlineSensors}</div>
+      <div class="smart-stat-label">Online Sensors</div>
+    </div>
+    <div class="smart-stat-card">
+      <div class="smart-stat-value">${avgBattery}%</div>
+      <div class="smart-stat-label">Avg Battery</div>
+    </div>
+  `;
+}
+
+function updateSmartSensors(data) {
+  const sensorsGrid = document.getElementById('smartSensorsGrid');
+  sensorsGrid.innerHTML = '';
+  
+  Object.values(data).forEach(sensor => {
+    const sensorCard = document.createElement('div');
+    sensorCard.className = 'smart-sensor-card';
+    sensorCard.innerHTML = `
+      <div class="smart-sensor-header">
+        <div class="smart-sensor-type">${sensor.sensor_type}</div>
+        <div class="smart-sensor-category">${sensor.category}</div>
+      </div>
+      <div class="smart-sensor-location">📍 ${sensor.city} - ${sensor.location}</div>
+      <div class="smart-sensor-data">
+        <div class="smart-data-item">
+          <div class="smart-data-value">
+            ${sensor.air_quality_index}
+            <span class="aqi-indicator ${getSmartAQIClass(sensor.air_quality_index)}">AQI</span>
+          </div>
+          <div class="smart-data-label">Air Quality Index</div>
+        </div>
+        <div class="smart-data-item">
+          <div class="smart-data-value">${sensor.pm2_5} μg/m³</div>
+          <div class="smart-data-label">PM2.5</div>
+        </div>
+        <div class="smart-data-item">
+          <div class="smart-data-value">${sensor.pm10} μg/m³</div>
+          <div class="smart-data-label">PM10</div>
+        </div>
+        <div class="smart-data-item">
+          <div class="smart-data-value">${sensor.temperature}°C</div>
+          <div class="smart-data-label">Temperature</div>
+        </div>
+        <div class="smart-data-item">
+          <div class="smart-data-value">${sensor.humidity}%</div>
+          <div class="smart-data-label">Humidity</div>
+        </div>
+        <div class="smart-data-item">
+          <div class="smart-data-value">
+            ${sensor.battery_level}%
+            <span class="battery-indicator ${getSmartBatteryClass(sensor.battery_level)}">Battery</span>
+          </div>
+          <div class="smart-data-label">Battery Level</div>
+        </div>
+        <div class="smart-data-item">
+          <div class="smart-data-value">${sensor.pressure} hPa</div>
+          <div class="smart-data-label">Pressure</div>
+        </div>
+        <div class="smart-data-item">
+          <div class="smart-data-value">${sensor.wind_speed} m/s</div>
+          <div class="smart-data-label">Wind Speed</div>
+        </div>
+      </div>
+    `;
+    sensorsGrid.appendChild(sensorCard);
+  });
+}
+
+function refreshSmartData() {
+  console.log('Refreshing smart sensor data...');
+  
+  // Simulate data refresh with random variations
+  Object.keys(sampleSmartData).forEach(sensorId => {
+    const sensor = sampleSmartData[sensorId];
+    sensor.air_quality_index = Math.max(0, sensor.air_quality_index + (Math.random() - 0.5) * 10);
+    sensor.pm2_5 = Math.max(0, sensor.pm2_5 + (Math.random() - 0.5) * 5);
+    sensor.pm10 = Math.max(0, sensor.pm10 + (Math.random() - 0.5) * 8);
+    sensor.temperature = sensor.temperature + (Math.random() - 0.5) * 2;
+    sensor.humidity = Math.max(0, Math.min(100, sensor.humidity + (Math.random() - 0.5) * 5));
+    sensor.battery_level = Math.max(0, sensor.battery_level - Math.random() * 0.5);
+    sensor.signal_strength = Math.max(0, Math.min(100, sensor.signal_strength + (Math.random() - 0.5) * 5));
+    sensor.timestamp = new Date().toISOString();
+  });
+  
+  // Check if elements exist before updating
+  const statsGrid = document.getElementById('smartStatsGrid');
+  const sensorsGrid = document.getElementById('smartSensorsGrid');
+  const lastUpdate = document.getElementById('smartLastUpdate');
+  const statusIndicator = document.getElementById('smartStatusIndicator');
+  
+  if (statsGrid) {
+    updateSmartStats(sampleSmartData);
+  } else {
+    console.error('smartStatsGrid element not found');
+  }
+  
+  if (sensorsGrid) {
+    updateSmartSensors(sampleSmartData);
+  } else {
+    console.error('smartSensorsGrid element not found');
+  }
+  
+  if (lastUpdate) {
+    lastUpdate.textContent = `Last updated: ${new Date().toLocaleTimeString()}`;
+  }
+  
+  if (statusIndicator) {
+    statusIndicator.className = 'status-indicator status-online';
+  }
+  
+  console.log('Smart sensor data refreshed successfully');
+}
+
+function exportSmartData() {
+  const csvContent = "data:text/csv;charset=utf-8," + 
+    "sensor_id,sensor_type,location,category,air_quality_index,pm2_5,pm10,temperature,humidity,pressure,wind_speed,wind_direction,battery_level,signal_strength,timestamp\n" +
+    Object.values(sampleSmartData).map(sensor => 
+      `${sensor.sensor_id},${sensor.sensor_type},${sensor.location},${sensor.category},${sensor.air_quality_index},${sensor.pm2_5},${sensor.pm10},${sensor.temperature},${sensor.humidity},${sensor.pressure},${sensor.wind_speed},${sensor.wind_direction},${sensor.battery_level},${sensor.signal_strength},${sensor.timestamp}`
+    ).join("\n");
+  
+  const encodedUri = encodeURI(csvContent);
+  const link = document.createElement("a");
+  link.setAttribute("href", encodedUri);
+  link.setAttribute("download", "smart_sensor_data.csv");
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
+function toggleSmartAutoRefresh() {
+  isSmartAutoRefresh = !isSmartAutoRefresh;
+  const status = document.getElementById('smartAutoRefreshStatus');
+  
+  if (isSmartAutoRefresh) {
+    smartAutoRefreshInterval = setInterval(refreshSmartData, 5000); // Refresh every 5 seconds
+    status.textContent = 'Auto refresh: ON (5s)';
+  } else {
+    clearInterval(smartAutoRefreshInterval);
+    status.textContent = 'Auto refresh: OFF';
+  }
+}
+
+// Simple sensor data with Kosovo city positions (all sensors positioned inside map borders)
+const sensors = [
+  { id: "smart-prishtina-001", city: "Prishtina", type: "urban", aqi: 45, x: 70, y: 35, pm2_5: 18.5, pm10: 28.2, temperature: 22.3, humidity: 65.1, battery: 87.5 },
+  { id: "smart-peja-002", city: "Peja", type: "industrial", aqi: 65, x: 25, y: 40, pm2_5: 28.7, pm10: 45.1, temperature: 25.1, humidity: 55.3, battery: 92.1 },
+  { id: "smart-prizren-003", city: "Prizren", type: "residential", aqi: 35, x: 45, y: 70, pm2_5: 15.2, pm10: 25.6, temperature: 20.1, humidity: 70.4, battery: 95.3 },
+  { id: "smart-gjakova-004", city: "Gjakova", type: "mobile", aqi: 55, x: 30, y: 60, pm2_5: 22.3, pm10: 35.8, temperature: 24.7, humidity: 60.2, battery: 78.9 },
+  { id: "smart-mitrovica-005", city: "Mitrovica", type: "aerial", aqi: 40, x: 60, y: 25, pm2_5: 15.2, pm10: 25.6, temperature: 20.1, humidity: 70.4, battery: 65.3 },
+  { id: "smart-ferizaj-006", city: "Ferizaj", type: "underground", aqi: 75, x: 65, y: 55, pm2_5: 35.8, pm10: 55.2, temperature: 28.5, humidity: 80.1, battery: 95.2 },
+  { id: "smart-gjilan-007", city: "Gjilan", type: "urban", aqi: 50, x: 80, y: 45, pm2_5: 20.1, pm10: 32.4, temperature: 23.8, humidity: 65.7, battery: 82.6 },
+  { id: "smart-vushtrri-008", city: "Vushtrri", type: "residential", aqi: 42, x: 60, y: 35, pm2_5: 17.8, pm10: 29.1, temperature: 21.5, humidity: 68.2, battery: 89.3 }
+];
+
+function renderKosovoMap() {
+  // The map image is already in the HTML, just render the markers
+  renderMarkers();
+  updateMapStatistics();
+}
+
+function renderMarkers() {
+  const mapMarkers = document.getElementById("mapMarkers");
+  if (!mapMarkers) return;
+  
+  mapMarkers.innerHTML = "";
+
+  sensors.forEach(sensor => {
+    const marker = document.createElement("div");
+    marker.className = `marker ${sensor.type}`;
+    marker.style.left = `${sensor.x}%`;
+    marker.style.top = `${sensor.y}%`;
+    marker.title = `${sensor.city} - AQI: ${sensor.aqi}`;
+    
+    // Add click event to show sensor details
+    marker.addEventListener('click', () => {
+      showSensorDetails(sensor);
+    });
+    
+    mapMarkers.appendChild(marker);
+  });
+}
+
+
+function showSensorDetails(sensor) {
+  // Create a more detailed modal instead of alert
+  const modal = document.createElement('div');
+  modal.className = 'sensor-modal';
+  modal.innerHTML = `
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>${sensor.id}</h3>
+        <span class="close-modal">&times;</span>
+      </div>
+      <div class="modal-body">
+        <div class="sensor-detail-section">
+          <h4>📍 Location</h4>
+          <p><strong>City:</strong> ${sensor.city}</p>
+          <p><strong>Type:</strong> ${sensor.type}</p>
+        </div>
+        <div class="sensor-detail-section">
+          <h4>🌡️ Air Quality</h4>
+          <p><strong>AQI:</strong> <span class="aqi-value ${getSmartAQIClass(sensor.aqi)}">${sensor.aqi}</span></p>
+          <p><strong>PM2.5:</strong> ${sensor.pm2_5} μg/m³</p>
+          <p><strong>PM10:</strong> ${sensor.pm10} μg/m³</p>
+        </div>
+        <div class="sensor-detail-section">
+          <h4>🌤️ Weather</h4>
+          <p><strong>Temperature:</strong> ${sensor.temperature}°C</p>
+          <p><strong>Humidity:</strong> ${sensor.humidity}%</p>
+        </div>
+        <div class="sensor-detail-section">
+          <h4>🔧 Status</h4>
+          <p><strong>Battery:</strong> <span class="battery-indicator ${getSmartBatteryClass(sensor.battery)}">${sensor.battery}%</span></p>
+          <p><strong>Last Update:</strong> ${new Date().toLocaleString()}</p>
+        </div>
+      </div>
+    </div>
+  `;
+  
+  // Add modal styles
+  const style = document.createElement('style');
+  style.textContent = `
+    .sensor-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.7);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    }
+    .modal-content {
+      background: white;
+      border-radius: 12px;
+      max-width: 500px;
+      width: 90%;
+      max-height: 80vh;
+      overflow-y: auto;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    }
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1.5rem;
+      border-bottom: 1px solid #e1e5e9;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+    .modal-header h3 {
+      margin: 0;
+      font-size: 1.3rem;
+    }
+    .close-modal {
+      font-size: 1.5rem;
+      cursor: pointer;
+      padding: 0.25rem;
+    }
+    .modal-body {
+      padding: 1.5rem;
+    }
+    .sensor-detail-section {
+      margin-bottom: 1.5rem;
+      padding: 1rem;
+      background: #f8f9fa;
+      border-radius: 8px;
+      border-left: 4px solid #667eea;
+    }
+    .sensor-detail-section h4 {
+      margin: 0 0 0.75rem 0;
+      color: #495057;
+      font-size: 1rem;
+    }
+    .sensor-detail-section p {
+      margin: 0.5rem 0;
+      color: #666;
+    }
+  `;
+  document.head.appendChild(style);
+  document.body.appendChild(modal);
+  
+  // Close modal functionality
+  modal.querySelector('.close-modal').addEventListener('click', () => {
+    document.body.removeChild(modal);
+    document.head.removeChild(style);
+  });
+  
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) {
+      document.body.removeChild(modal);
+      document.head.removeChild(style);
+    }
+  });
+}
+
+function updateMapStatistics() {
+  const totalSensors = sensors.length;
+  const avgAQI = Math.round(sensors.reduce((sum, s) => sum + s.aqi, 0) / totalSensors);
+  const citiesCovered = new Set(sensors.map(s => s.city)).size;
+  
+  // Update statistics display
+  const totalElement = document.getElementById('totalSensorsOnMap');
+  const avgElement = document.getElementById('avgAQIOnMap');
+  const citiesElement = document.getElementById('citiesCovered');
+  
+  if (totalElement) totalElement.textContent = totalSensors;
+  if (avgElement) avgElement.textContent = avgAQI;
+  if (citiesElement) citiesElement.textContent = citiesCovered;
+}
+
+function startSmartSimulation() {
+  // This would start the actual smart sensor simulation
+  alert('🚀 Smart Virtual Sensor Simulation Started!\n\nTo run the actual simulation, execute:\ncd backend && python smart_virtual_sensors.py');
+  refreshSmartData();
+}
+
+// Smart sensors event listeners - moved to main DOMContentLoaded
+function initializeSmartSensors() {
+  console.log('Initializing smart sensors...');
+  
+  // Smart sensors controls
+  const smartRefreshBtn = document.getElementById('smart-refresh');
+  const smartExportBtn = document.getElementById('smart-export');
+  const smartAutoRefreshBtn = document.getElementById('smart-auto-refresh');
+  const smartStartBtn = document.getElementById('smart-start-simulation');
+  
+  console.log('Smart sensor buttons found:', {
+    refresh: !!smartRefreshBtn,
+    export: !!smartExportBtn,
+    autoRefresh: !!smartAutoRefreshBtn,
+    start: !!smartStartBtn
+  });
+  
+  if (smartRefreshBtn) {
+    smartRefreshBtn.addEventListener('click', refreshSmartData);
+    console.log('Refresh button event listener added');
+  }
+  
+  if (smartExportBtn) {
+    smartExportBtn.addEventListener('click', exportSmartData);
+    console.log('Export button event listener added');
+  }
+  
+  if (smartAutoRefreshBtn) {
+    smartAutoRefreshBtn.addEventListener('click', toggleSmartAutoRefresh);
+    console.log('Auto refresh button event listener added');
+  }
+  
+  if (smartStartBtn) {
+    smartStartBtn.addEventListener('click', startSmartSimulation);
+    console.log('Start simulation button event listener added');
+  }
+  
+  // Initialize smart sensors data
+  console.log('Calling refreshSmartData...');
+  refreshSmartData();
+  
+  // Render Kosovo map
+  console.log('Rendering Kosovo map...');
+  renderKosovoMap();
+  
+  console.log('Smart sensors initialization complete');
+}

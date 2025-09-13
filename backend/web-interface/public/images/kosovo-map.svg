@@ -1,0 +1,30 @@
+<svg width="600" height="400" viewBox="0 0 600 400" fill="none" xmlns="http://www.w3.org/2000/svg">
+<rect width="600" height="400" fill="#f5f7fa"/>
+
+<!-- Kosovo Shape -->
+<path d="M 100 80 L 150 60 L 200 70 L 250 65 L 300 75 L 350 70 L 400 80 L 450 90 L 480 110 L 500 140 L 510 170 L 500 200 L 480 230 L 450 250 L 400 260 L 350 270 L 300 280 L 250 275 L 200 270 L 150 260 L 120 240 L 100 210 L 90 180 L 100 150 L 100 80 Z" fill="#e9ecef" stroke="#495057" stroke-width="3"/>
+
+<!-- Prishtina -->
+<circle cx="300" cy="180" r="8" fill="#ff6b6b"/>
+
+<!-- Peja -->
+<circle cx="180" cy="120" r="8" fill="#4ecdc4"/>
+
+<!-- Prizren -->
+<circle cx="220" cy="250" r="8" fill="#45b7d1"/>
+
+<!-- Gjakova -->
+<circle cx="160" cy="200" r="8" fill="#96ceb4"/>
+
+<!-- Mitrovica -->
+<circle cx="250" cy="100" r="8" fill="#feca57"/>
+
+<!-- Ferizaj -->
+<circle cx="380" cy="220" r="8" fill="#a55eea"/>
+
+<!-- Gjilan -->
+<circle cx="350" cy="160" r="8" fill="#a55eea"/>
+
+<!-- Vushtrri -->
+<circle cx="200" cy="140" r="8" fill="#45b7d1"/>
+</svg>
