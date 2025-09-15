@@ -96,101 +96,135 @@ def industrial_cycle(hour: int) -> float:
         return 0.7
     else:
         return 1.0
+    
+def linear_scale(value, low, high, aqi_low, aqi_high):
+    """Linear interpolation for AQI calculation"""
+    return int(((value - low) / (high - low)) * (aqi_high - aqi_low) + aqi_low)
+    
+# AQI calculation functions
+def calculate_aqi(pm25, pm10):
+    """Calculate Air Quality Index based on PM2.5 and PM10 values"""
+    # PM2.5 AQI calculation (EPA standard)
+    if pm25 <= 12.0:
+        aqi_pm25 = linear_scale(pm25, 0, 12.0, 0, 50)
+    elif pm25 <= 35.4:
+        aqi_pm25 = linear_scale(pm25, 12.1, 35.4, 51, 100)
+    elif pm25 <= 55.4:
+        aqi_pm25 = linear_scale(pm25, 35.5, 55.4, 101, 150)
+    elif pm25 <= 150.4:
+        aqi_pm25 = linear_scale(pm25, 55.5, 150.4, 151, 200)
+    elif pm25 <= 250.4:
+        aqi_pm25 = linear_scale(pm25, 150.5, 250.4, 201, 300)
+    else:
+        aqi_pm25 = linear_scale(pm25, 250.5, 500.4, 301, 500)
+    
+    # PM10 AQI calculation
+    if pm10 <= 54:
+        aqi_pm10 = linear_scale(pm10, 0, 54, 0, 50)
+    elif pm10 <= 154:
+        aqi_pm10 = linear_scale(pm10, 55, 154, 51, 100)
+    elif pm10 <= 254:
+        aqi_pm10 = linear_scale(pm10, 155, 254, 101, 150)
+    elif pm10 <= 354:
+        aqi_pm10 = linear_scale(pm10, 255, 354, 151, 200)
+    elif pm10 <= 424:
+        aqi_pm10 = linear_scale(pm10, 355, 424, 201, 300)
+    else:
+        aqi_pm10 = linear_scale(pm10, 425, 604, 301, 500)
+    
+    # Return the higher AQI value
+    return max(aqi_pm25, aqi_pm10)
 
+def get_aqi_category(aqi):
+    """Get AQI category and health risk"""
+    if aqi <= 50:
+        return "Good", "🟢 Air quality is satisfactory"
+    elif aqi <= 100:
+        return "Moderate", "🟡 Some pollutants may be a concern"
+    elif aqi <= 150:
+        return "Unhealthy for Sensitive Groups", "🟠 Sensitive groups may experience health effects"
+    elif aqi <= 200:
+        return "Unhealthy", "🔴 Everyone may begin to experience health effects"
+    elif aqi <= 300:
+        return "Very Unhealthy", "🟣 Health warnings of emergency conditions"
+    else:
+        return "Hazardous", "⚫ Health alert: everyone may experience serious health effects"
+    
 def generate_reading(sensor_id: str, sensor_config: dict):
-    """Generate realistic reading for a specific sensor"""
     now = datetime.utcnow()
     hour = now.hour
-    
-    # Get baseline values
     baselines = sensor_config["baselines"]
     variations = sensor_config["variation"]
     pollution_factor = sensor_config["pollution_factor"]
+
+    # PM and environmental calculations...
+    pm2_5 = max(0, round(random.gauss(baselines["pm2_5"]*pollution_factor, variations["pm2_5"]), 2))
+    pm10 = max(0, round(random.gauss(baselines["pm10"]*pollution_factor, variations["pm10"]), 2))
+    temperature = round(random.gauss(baselines["temperature"], variations["temperature"]), 2)
+    humidity = round(random.gauss(baselines["humidity"], variations["humidity"]), 2)
     
-    # Apply diurnal variation
-    temperature = diurnal_variation(baselines["temperature"], variations["temperature"], hour)
-    humidity = diurnal_variation(baselines["humidity"], variations["humidity"], (hour + 6) % 24)
-    
-    # Base pollution levels
-    pm2_5_base = baselines["pm2_5"]
-    pm10_base = baselines["pm10"]
-    
-    # Apply traffic patterns for urban sensors
-    if sensor_config.get("traffic_patterns"):
-        traffic_multiplier = traffic_pattern(hour)
-        pm2_5_base *= traffic_multiplier
-        pm10_base *= traffic_multiplier
-    
-    # Apply industrial cycles for industrial sensors
-    if sensor_config.get("industrial_cycles"):
-        industrial_multiplier = industrial_cycle(hour)
-        pm2_5_base *= industrial_multiplier
-        pm10_base *= industrial_multiplier
-    
-    # Apply daily patterns for residential sensors
-    if sensor_config.get("daily_patterns"):
-        # Lower pollution during night
-        if 22 <= hour or hour <= 6:
-            pm2_5_base *= 0.6
-            pm10_base *= 0.6
-    
-    # Add random variation
-    pm2_5 = round(random.gauss(pm2_5_base, variations["pm2_5"]), 2)
-    pm10 = round(random.gauss(pm10_base, variations["pm10"]), 2)
-    temperature = round(random.gauss(temperature, 0.5), 2)
-    humidity = round(random.gauss(humidity, 2), 2)
-    
-    # Apply pollution factor
-    pm2_5 *= pollution_factor
-    pm10 *= pollution_factor
-    
-    # Ensure minimum values
-    pm2_5 = max(0, pm2_5)
-    pm10 = max(0, pm10)
-    humidity = max(0, min(100, humidity))
-    
-    # Occasional pollution spikes (more frequent in industrial areas)
-    spike_probability = 0.08 if sensor_config["type"] == "Industrial" else 0.05
-    if random.random() < spike_probability:
-        spike_intensity = random.uniform(1.5, 3.0)
-        pm2_5 *= spike_intensity
-        pm10 *= spike_intensity
-    
+    aqi = calculate_aqi(pm2_5, pm10)
+    category, health_message = get_aqi_category(aqi)
+
+    # Simulated additional fields
+    latitude = sensor_config.get("latitude", round(random.uniform(-90, 90), 6))
+    longitude = sensor_config.get("longitude", round(random.uniform(-180, 180), 6))
+    visibility_meters = round(random.uniform(200, 10000), 2)
+    weather_condition = random.choice(["Clear", "Cloudy", "Rain", "Fog"])
+    pressure_hpa = round(random.uniform(980, 1050), 2)
+
     return {
         "sensor_id": sensor_id,
         "timestamp": now.isoformat(),
-        "pm2_5": round(pm2_5, 2),
-        "pm10": round(pm10, 2),
+        "location_name": sensor_config["location"],
+        "area_type": sensor_config["type"],
+        "latitude": latitude,
+        "longitude": longitude,
+        "pm2_5": pm2_5,
+        "pm10": pm10,
+        "aqi": calculate_aqi(pm2_5, pm10),
+        "health_risk": health_message,
+        "visibility_meters": visibility_meters,
         "temperature": temperature,
         "humidity": humidity,
-        "sensor_type": sensor_config["type"],
-        "location": sensor_config["location"]
-    }
+        "weather_condition": weather_condition,
+        "pressure_hpa": pressure_hpa
+        }
+
 
 def send_sensor_data(sensor_id: str, sensor_config: dict):
-    """Send data for a specific sensor"""
+    """Send data for a specific sensor with detailed logging"""
     while True:
         try:
             reading = generate_reading(sensor_id, sensor_config)
             response = requests.post(f"{API_URL}/{sensor_id}", json=reading)
             
+            timestamp = datetime.utcnow().isoformat()
+            
             if response.status_code == 200:
-                print(f"[{datetime.utcnow()}] {sensor_config['type']} Sensor ({sensor_id}): "
-                      f"PM2.5={reading['pm2_5']}, PM10={reading['pm10']}, "
-                      f"Temp={reading['temperature']}°C, Humidity={reading['humidity']}%")
+                print(f"[{timestamp}] ✅ SUCCESS - {sensor_config['type']} Sensor ({sensor_id}) sent data")
+                print(f"    Data: PM2.5={reading['pm2_5']}, PM10={reading['pm10']}, "
+                    f"Location={reading['location_name']}, AQI={reading['aqi']}, "
+                    f"Health Risk=({reading['health_risk']}), "
+                    f"Temp={reading['temperature']}°C, Humidity={reading['humidity']}%")
+
             else:
-                print(f"❌ Error sending data for {sensor_id}: HTTP {response.status_code}")
+                print(f"[{timestamp}] ❌ ERROR - {sensor_config['type']} Sensor ({sensor_id}) HTTP {response.status_code}")
+                print(f"    Payload: {reading}")
                 
+        except requests.exceptions.RequestException as req_err:
+            print(f"[{datetime.utcnow().isoformat()}] ❌ REQUEST ERROR - {sensor_id}: {req_err}")
         except Exception as e:
-            print(f"❌ Error with {sensor_id}: {e}")
+            print(f"[{datetime.utcnow().isoformat()}] ❌ GENERAL ERROR - {sensor_id}: {e}")
         
-        # Different update frequencies for different sensor types
+        # Set sleep interval based on sensor type
         if sensor_config["type"] == "Industrial":
-            time.sleep(20)  # Industrial sensors update every 20 seconds
+            time.sleep(20)
         elif sensor_config["type"] == "Urban":
-            time.sleep(25)  # Urban sensors update every 25 seconds
+            time.sleep(25)
         else:
-            time.sleep(30)  # Residential sensors update every 30 seconds
+            time.sleep(30)
+
 
 def main():
     """Main function to start all sensors"""

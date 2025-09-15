@@ -3,27 +3,6 @@ const API_BASE = "http://localhost:8000/api";
 let ws = null;
 let isConnected = false;
 
-// Missing functions that are called by WebSocket
-function updateConnectionStatus(status, type) {
-  const wsStatusElement = document.getElementById("wsStatus");
-  if (wsStatusElement) {
-    wsStatusElement.textContent = status;
-    wsStatusElement.className = `health-value ${type === 'success' ? 'success' : 'error'}`;
-  }
-}
-
-function updateRealTimeData(data) {
-  console.log("Updating real-time data:", data);
-  // This function would update the real-time data display
-  // For now, just log the data
-}
-
-function updateAlerts(alerts) {
-  console.log("Updating alerts:", alerts);
-  // This function would update the alerts display
-  // For now, just log the alerts
-}
-
 function connectWebSocket() {
   try {
     ws = new WebSocket(`ws://${window.location.host}/ws`);
@@ -36,15 +15,7 @@ function connectWebSocket() {
 
     ws.onmessage = function (event) {
       try {
-        // Check if the message is valid JSON
-        let data;
-        try {
-          data = JSON.parse(event.data);
-        } catch (jsonError) {
-          console.log("Non-JSON WebSocket message:", event.data);
-          return; // Skip non-JSON messages
-        }
-        
+        const data = JSON.parse(event.data);
         console.log("WebSocket message received:", data);
 
         if (data.type === "realtime_update") {
@@ -55,7 +26,7 @@ function connectWebSocket() {
 
         updateConnectionStatus("Connected", "success");
       } catch (error) {
-        console.error("Error processing WebSocket message:", error);
+        console.error("Error parsing WebSocket message:", error);
       }
     };
 
@@ -116,36 +87,30 @@ function getSensorColor(sensorType) {
   }
 }
 
+function getAQICategory(aqi) {
+  if (aqi <= 50) return "Good";
+  if (aqi <= 100) return "Moderate";
+  if (aqi <= 150) return "Unhealthy for Sensitive Groups";
+  if (aqi <= 200) return "Unhealthy";
+  if (aqi <= 300) return "Very Unhealthy";
+  return "Hazardous";
+}
+
 // Load main statistics
 async function loadStats() {
   try {
     const data = await fetchJSON(`${API_BASE}/stats`);
 
-    // Update basic stats
-    document.getElementById("activeSensors").textContent =
-      data.sensor_count || 0;
-    document.getElementById("totalReadings").textContent =
-      data.total_readings || 0;
-    document.getElementById("activeAlerts").textContent =
-      data.active_alerts || 0;
+    // Update main stats
+    document.getElementById("activeSensors").textContent = data.sensorCount || 0;
+    document.getElementById("totalReadings").textContent = data.totalRecords || 0;
+    document.getElementById("activeAlerts").textContent = data.activeAlerts || 0;
 
-    // Update uptime
-    const uptimeHours = Math.floor((data.uptime_seconds || 0) / 3600);
-    const uptimeMinutes = Math.floor(((data.uptime_seconds || 0) % 3600) / 60);
-    document.getElementById(
-      "uptime"
-    ).textContent = `${uptimeHours}h ${uptimeMinutes}m`;
+    const uptimeHours = Math.floor((data.uptimeSeconds || 0) / 3600);
+    const uptimeMinutes = Math.floor(((data.uptimeSeconds || 0) % 3600) / 60);
+    document.getElementById("uptime").textContent = `${uptimeHours}h ${uptimeMinutes}m`;
 
-    // Update average AQI if available
-    if (data.average_aqi) {
-      const aqiElement = document.getElementById("averageAQI");
-      if (aqiElement) {
-        aqiElement.textContent = data.average_aqi;
-        aqiElement.className = `aqi-value ${getAQIClass(data.average_aqi)}`;
-      }
-    }
-
-    // Update sensor list if available
+    // Update sensor list
     if (data.sensors && data.sensors.length > 0) {
       updateSensorList(data.sensors);
     }
@@ -164,13 +129,13 @@ function updateSensorList(sensors) {
   if (!sensorListElement) return;
 
   sensorListElement.innerHTML = "";
-  sensors.forEach((sensorId) => {
-    const sensorElement = document.createElement("div");
-    sensorElement.className = "sensor-item";
 
-    // Determine sensor type from ID
+  sensors.forEach((sensorObj) => {
+    const sensorId = sensorObj.id; 
+
     let sensorType = "Unknown";
     let location = "Unknown";
+
     if (sensorId.includes("urban")) {
       sensorType = "Urban";
       location = "City Center";
@@ -191,14 +156,18 @@ function updateSensorList(sensors) {
       location = "Aerial / City Monitoring";
     }
 
+    const sensorElement = document.createElement("div");
+    sensorElement.className = "sensor-item";
+
     sensorElement.innerHTML = `
-            <span class="sensor-icon">${getSensorIcon(sensorType)}</span>
-            <div class="sensor-info">
-                <span class="sensor-id">${sensorId}</span>
-                <span class="sensor-type">${sensorType}</span>
-                <span class="sensor-location">${location}</span>
-            </div>
-        `;
+      <span class="sensor-icon">${getSensorIcon(sensorType)}</span>
+      <div class="sensor-info">
+          <span class="sensor-id">${sensorId}</span>
+          <span class="sensor-type">${sensorType}</span>
+          <span class="sensor-location">${location}</span>
+      </div>
+    `;
+
     sensorListElement.appendChild(sensorElement);
   });
 }
@@ -253,7 +222,7 @@ function updateAlerts(alerts) {
   // Update Active Alerts count
   const activeAlertsElement = document.getElementById("activeAlerts");
   if (activeAlertsElement) {
-    activeAlertsElement.textContent = alerts.length; // ✅ now only active alerts
+    activeAlertsElement.textContent = alerts.length;
   }
 
   if (alerts.length === 0) {
@@ -263,39 +232,45 @@ function updateAlerts(alerts) {
 
   alertsContainer.innerHTML = "";
   alerts.forEach((alert) => {
-    const alertElement = document.createElement("div");
-    alertElement.className = `alert alert-${alert.severity}`;
-    alertElement.innerHTML = `
-            <div class="alert-header">
-                <span class="alert-type">${alert.type}</span>
-                <span class="alert-severity ${alert.severity}">${
-      alert.severity
-    }</span>
-            </div>
-            <p class="alert-message">${alert.message}</p>
-            <div class="alert-details">
-                <small>Sensor: ${alert.sensor_id} | ${new Date(
-      alert.timestamp
-    ).toLocaleString()}</small>
-            </div>
-        `;
-    alertsContainer.appendChild(alertElement);
-  });
+  const alertElement = document.createElement("div");
+  alertElement.className = `alert alert-${alert.severity.toLowerCase()}`; 
+  alertElement.innerHTML = `
+      <div class="alert-header">
+          <span class="alert-type">${alert.type}</span>
+          <span class="alert-severity ${alert.severity.toLowerCase()}">${alert.severity}</span>
+      </div>
+      <p class="alert-message">${alert.message}</p>
+      <div class="alert-details">
+          <small>Sensor: ${alert.sensor_id} | ${new Date(alert.timestamp).toLocaleString()}</small>
+      </div>
+  `;
+
+  alertsContainer.appendChild(alertElement);
+});
 }
 
-// Load analytics for a sensor
 async function loadAnalytics(sensorId, hours = 24) {
   try {
-    const analytics = await fetchJSON(
+    const response = await fetch(
       `${API_BASE}/analytics/${sensorId}?hours=${hours}`
     );
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(
+        `HTTP ${response.status} ${response.statusText}: ${text}`
+      );
+    }
+
+    const analytics = await response.json();
     updateAnalyticsDisplay(analytics);
   } catch (err) {
-    console.error("Error loading analytics:", err);
+    console.error("Detailed Error loading analytics:", err);
     document.getElementById("analytics").innerHTML =
-      '<p class="error">Error loading analytics</p>';
+      `<p class="error">Error loading analytics: ${err.message}</p>`;
   }
 }
+
 
 //update analytics display
 function updateAnalyticsDisplay(analytics) {
@@ -347,49 +322,63 @@ async function fetchJSON(url) {
   }
 }
 
+let latestLoading = false;
+
 async function loadLatest() {
+  if (latestLoading) return; 
+  latestLoading = true;
+
   const grid = document.getElementById("latestGrid");
+  if (!grid) return;
+
   grid.innerHTML = "Loading...";
+
   try {
     const data = await fetchJSON(`${API_BASE}/sensors/latest`);
-    grid.innerHTML = "";
+    grid.innerHTML = ""; 
+
+    if (!data || data.length === 0) {
+      grid.innerHTML = "<em>No data yet. Start the sensors.</em>";
+      return;
+    }
+
+    const seenSensors = new Set(); 
     data.forEach((row) => {
-      const el = document.createElement("div"); // <-- define el
-      el.className = "latest-sensor-card"; // optional: for styling
+      if (seenSensors.has(row.sensor_id)) return; 
+      seenSensors.add(row.sensor_id);
+
+      const sensorType = row.area_type || "Unknown";
+      const el = document.createElement("div");
+      el.className = "latest-sensor-card";
+
       el.innerHTML = `
-    <div class="sensor-header">
-      <span class="sensor-icon-large">${getSensorIcon(
-        row.sensor_type || "Unknown"
-      )}</span>
-      <h3>${row.sensor_id}</h3>
-      <span class="sensor-type-badge">${row.sensor_type || "Unknown"}</span>
-    </div>
-    <div class="sensor-location">📍 ${row.location || "Unknown"}</div>
-    <div class="aqi-display">
-      <span class="aqi-value ${row.aqi ? getAQIClass(row.aqi) : ""}">AQI: ${
-        row.aqi || "N/A"
-      }</span>
-      <span class="aqi-category">${row.aqi_category || "Unknown"}</span>
-    </div>
-    <div class="sensor-readings">
-      <p style="color:white"><strong>PM2.5:</strong> ${row.pm2_5}</p>
-       <p style="color:white"><strong>PM10:</strong> ${row.pm10}</p>
-      <p style="color:white"><strong>Temp:</strong> ${row.temperature} °C</p>
-      <p style="color:white"><strong>Humidity:</strong> ${row.humidity} %</p>
-    </div>
-    <p class="health-message">${row.health_message || ""}</p>
-    <p class="timestamp"><small>${new Date(
-      row.timestamp
-    ).toLocaleString()}</small></p>
-  `;
+        <div class="sensor-header">
+          <span class="sensor-icon-large">${getSensorIcon(sensorType)}</span>
+          <h3>${row.sensor_id}</h3>
+          <span class="sensor-type-badge">${sensorType}</span>
+        </div>
+        <div class="sensor-location">📍 ${row.location_name || "Unknown"}</div>
+        <div class="aqi-display">
+          <span class="aqi-value ${row.aqi ? getAQIClass(row.aqi) : ""}">
+            AQI: ${row.aqi ?? "N/A"}
+          </span>
+          <span class="aqi-category">${getAQICategory(row.aqi) || ""}</span>
+        </div>
+        <div class="sensor-readings">
+          <p style="color:white"><strong>PM2.5:</strong> ${row.pm2_5 ?? "-"}</p>
+          <p style="color:white"><strong>PM10:</strong> ${row.pm10 ?? "-"}</p>
+          <p><strong>Temp:</strong> ${row.temperature_celsius ?? "-"} °C</p>
+          <p><strong>Humidity:</strong> ${row.humidity_percent ?? "-"} %</p>
+        </div>
+        <p class="health-message">${row.health_risk || ""}</p>
+        <p class="timestamp"><small>${new Date(row.timestamp).toLocaleString()}</small></p>
+      `;
       grid.appendChild(el);
     });
-
-    if (data.length === 0) {
-      grid.innerHTML = "<em>No data yet. Start the sensors.</em>";
-    }
   } catch (err) {
     grid.innerHTML = `<span style="color:#fca5a5">Error: ${err.message}</span>`;
+  } finally {
+    latestLoading = false;
   }
 }
 
@@ -413,8 +402,8 @@ async function loadRecent(sensorId, limit) {
         <td>${row.pm2_5}</td>
         <td>${row.pm10}</td>
         <td class="${aqiClass}">${aqi}</td>
-        <td>${row.temperature}</td>
-        <td>${row.humidity}</td>
+        <td>${row.temperature_celsius}</td>
+        <td>${row.humidity_percent}</td>
         <td>${d.toLocaleString()}</td>
       `;
       tbody.appendChild(tr);
@@ -565,7 +554,7 @@ document.getElementById("sensor-form").addEventListener("submit", (e) => {
 document.getElementById("analyticsContent").innerHTML =
   '<p class="error">Error loading analytics</p>';
 
-  document.getElementById("exportCSV").addEventListener("click", () => {
+document.getElementById("exportCSV").addEventListener("click", () => {
   const grid = document.getElementById("latestGrid");
   const cards = grid.querySelectorAll(".latest-sensor-card");
 
@@ -594,18 +583,43 @@ document.getElementById("analyticsContent").innerHTML =
   cards.forEach((card) => {
     const sensorId = card.querySelector("h3")?.textContent || "";
     const type = card.querySelector(".sensor-type-badge")?.textContent || "";
-    const location = card.querySelector(".sensor-location")?.textContent.replace("📍 ", "") || "";
-    const aqi = card.querySelector(".aqi-value")?.textContent.replace("AQI: ", "") || "";
+    const location =
+      card.querySelector(".sensor-location")?.textContent.replace("📍 ", "") ||
+      "";
+    const aqi =
+      card.querySelector(".aqi-value")?.textContent.replace("AQI: ", "") || "";
     const aqiCategory = card.querySelector(".aqi-category")?.textContent || "";
-    const pm25 = card.querySelector(".sensor-readings p:nth-child(1)")?.textContent.replace("PM2.5: ", "") || "";
-    const pm10 = card.querySelector(".sensor-readings p:nth-child(2)")?.textContent.replace("PM10: ", "") || "";
-    const temp = card.querySelector(".sensor-readings p:nth-child(3)")?.textContent.replace("Temp: ", "") || "";
-    const humidity = card.querySelector(".sensor-readings p:nth-child(4)")?.textContent.replace("Humidity: ", "") || "";
+    const pm25 =
+      card
+        .querySelector(".sensor-readings p:nth-child(1)")
+        ?.textContent.replace("PM2.5: ", "") || "";
+    const pm10 =
+      card
+        .querySelector(".sensor-readings p:nth-child(2)")
+        ?.textContent.replace("PM10: ", "") || "";
+    const temp =
+      card
+        .querySelector(".sensor-readings p:nth-child(3)")
+        ?.textContent.replace("Temp: ", "") || "";
+    const humidity =
+      card
+        .querySelector(".sensor-readings p:nth-child(4)")
+        ?.textContent.replace("Humidity: ", "") || "";
     const health = card.querySelector(".health-message")?.textContent || "";
     const timestamp = card.querySelector(".timestamp")?.textContent || "";
 
     const row = [
-      sensorId, type, location, aqi, aqiCategory, pm25, pm10, temp, humidity, health, timestamp
+      sensorId,
+      type,
+      location,
+      aqi,
+      aqiCategory,
+      pm25,
+      pm10,
+      temp,
+      humidity,
+      health,
+      timestamp,
     ];
 
     rows.push(row.join(","));
@@ -616,10 +630,21 @@ document.getElementById("analyticsContent").innerHTML =
   const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
   const link = document.createElement("a");
   link.href = URL.createObjectURL(blob);
-  link.download = `latest_readings_${new Date().toISOString().slice(0,19).replace(/:/g,"-")}.csv`;
+  link.download = `latest_readings_${new Date()
+    .toISOString()
+    .slice(0, 19)
+    .replace(/:/g, "-")}.csv`;
   link.click();
 });
 
+function getAQICategory(aqi) {
+  if (aqi <= 50) return "Good";
+  if (aqi <= 100) return "Moderate";
+  if (aqi <= 150) return "Unhealthy for Sensitive Groups";
+  if (aqi <= 200) return "Unhealthy";
+  if (aqi <= 300) return "Very Unhealthy";
+  return "Hazardous";
+}
 
 document.getElementById("refresh").addEventListener("click", () => {
   const refreshBtn = document.getElementById("refresh");
@@ -637,7 +662,6 @@ document.getElementById("refresh").addEventListener("click", () => {
       refreshBtn.disabled = false;
     });
 });
-
 
 // Analytics controls
 document.getElementById("load-analytics").addEventListener("click", () => {
@@ -667,6 +691,37 @@ document.getElementById("analytics-hours").addEventListener("change", () => {
   loadAnalytics(sensorId, hours);
 });
 
+async function updateSystemHealth() {
+    try {
+        const response = await fetch('/api/health');
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+        const health = await response.json();
+
+        // Update UI elements
+        document.getElementById('backendStatus').textContent = health.status || 'Unknown';
+        document.getElementById('wsStatus').textContent = health.websocketConnections ?? '0';
+        document.getElementById('lastUpdate').textContent = new Date(health.timestamp).toLocaleString();
+
+        // Update DB status
+        const dbElement = document.getElementById('dbStatus');
+        if (dbElement) {
+            dbElement.textContent = health.cassandra === 'connected' 
+                ? 'Connected' 
+                : 'Disconnected';
+            
+            dbElement.className = `health-value status ${health.cassandra === 'connected' ? 'connected' : 'disconnected'}`;
+        }
+
+    } catch (error) {
+        console.error('Error fetching system health:', error);
+        document.getElementById('backendStatus').textContent = 'Error';
+        document.getElementById('wsStatus').textContent = 'Error';
+        document.getElementById('lastUpdate').textContent = '-';
+    }
+}
+
+
 const sensorsGrid = document.getElementById("sensorsGrid");
 
 // Initialize the application
@@ -676,17 +731,18 @@ document.addEventListener("DOMContentLoaded", function () {
 
   // Load initial data
   loadAllSensors();
-  loadLatest();
   loadSensors();
+  loadLatest();
   loadStats();
   loadAlerts();
+  updateSystemHealth();
 
-  // Initialize smart sensors
   initializeSmartSensors();
 
   setInterval(loadLatest, 10000);
   setInterval(loadStats, 10000);
   setInterval(loadAlerts, 15000);
+  setInterval(updateSystemHealth, 10000);
 
   setInterval(() => {
     const uptimeElement = document.getElementById("uptime");
@@ -703,6 +759,7 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   }, 60000);
 });
+
 
 // Smart Virtual Sensors functionality
 let smartSensorsData = {};
@@ -878,6 +935,20 @@ function getSmartBatteryClass(battery) {
   return 'battery-low';
 }
 
+function syncSensorsWithSampleData() {
+  sensors.forEach(sensor => {
+    const updated = sampleSmartData[sensor.id];
+    if (updated) {
+      sensor.aqi = Math.round(updated.air_quality_index);
+      sensor.pm2_5 = parseFloat(updated.pm2_5.toFixed(1));
+      sensor.pm10 = parseFloat(updated.pm10.toFixed(1));
+      sensor.temperature = parseFloat(updated.temperature.toFixed(1));
+      sensor.humidity = parseFloat(updated.humidity.toFixed(1));
+      sensor.battery = parseFloat(updated.battery_level.toFixed(1));
+    }
+  });
+}
+
 function updateSmartStats(data) {
   const stats = Object.values(data);
   const totalSensors = stats.length;
@@ -981,46 +1052,52 @@ function updateSmartSensors(data) {
   });
 }
 
-function refreshSmartData() {
+async function refreshSmartData() {
   console.log('Refreshing smart sensor data...');
-  
-  // Simulate data refresh with random variations
+
+  // Randomize sample data
   Object.keys(sampleSmartData).forEach(sensorId => {
     const sensor = sampleSmartData[sensorId];
     sensor.air_quality_index = Math.max(0, sensor.air_quality_index + (Math.random() - 0.5) * 10);
     sensor.pm2_5 = Math.max(0, sensor.pm2_5 + (Math.random() - 0.5) * 5);
     sensor.pm10 = Math.max(0, sensor.pm10 + (Math.random() - 0.5) * 8);
-    sensor.temperature = sensor.temperature + (Math.random() - 0.5) * 2;
+    sensor.temperature += (Math.random() - 0.5) * 2;
     sensor.humidity = Math.max(0, Math.min(100, sensor.humidity + (Math.random() - 0.5) * 5));
     sensor.battery_level = Math.max(0, sensor.battery_level - Math.random() * 0.5);
     sensor.signal_strength = Math.max(0, Math.min(100, sensor.signal_strength + (Math.random() - 0.5) * 5));
     sensor.timestamp = new Date().toISOString();
   });
-  
-  // Update UI elements
-  const statsGrid = document.getElementById('smartStatsGrid');
-  const sensorsGrid = document.getElementById('smartSensorsGrid');
+
+  // Update UI
+  updateSmartStats(sampleSmartData);
+  updateSmartSensors(sampleSmartData);
+
+  // Sync sensors array for map markers
+  syncSensorsWithSampleData();
+  renderMarkers();
+  updateMapStatistics();
+
+  // Optional: Push to backend
+  for (const sensor of Object.values(sampleSmartData)) {
+    try {
+      await fetch(`/api/smart-sensors/${sensor.sensor_id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(sensor)
+      });
+    } catch (err) {
+      console.error('❌ Failed to send sensor to backend:', sensor.sensor_id, err);
+    }
+  }
+
   const lastUpdate = document.getElementById('smartLastUpdate');
   const statusIndicator = document.getElementById('smartStatusIndicator');
-  
-  if (statsGrid) {
-    updateSmartStats(sampleSmartData);
-  }
-  
-  if (sensorsGrid) {
-    updateSmartSensors(sampleSmartData);
-  }
-  
-  if (lastUpdate) {
-    lastUpdate.textContent = `Last updated: ${new Date().toLocaleTimeString()}`;
-  }
-  
-  if (statusIndicator) {
-    statusIndicator.className = 'status-indicator status-online';
-  }
-  
+  if (lastUpdate) lastUpdate.textContent = `Last updated: ${new Date().toLocaleTimeString()}`;
+  if (statusIndicator) statusIndicator.className = 'status-indicator status-online';
+
   console.log('Smart sensor data refreshed successfully');
 }
+
 
 function exportSmartData() {
   const csvContent = "data:text/csv;charset=utf-8," + 

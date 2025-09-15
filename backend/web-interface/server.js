@@ -326,7 +326,226 @@ app.get('/api/analytics/:sensorId', async (req, res) => {
     }
 });
 
-// server.js (snippet)
+
+let smartSensorsData = {};
+
+function getSmartAQIClass(aqi) {
+    if (aqi <= 50) return 'aqi-good';
+    if (aqi <= 100) return 'aqi-moderate';
+    if (aqi <= 150) return 'aqi-unhealthy';
+    return 'aqi-hazardous';
+}
+
+function getSmartBatteryClass(battery) {
+    if (battery >= 70) return 'battery-high';
+    if (battery >= 30) return 'battery-medium';
+    return 'battery-low';
+}
+const { v4: uuidv4 } = require('uuid');
+
+// ------------------------------
+// Alerts & Stats Generators
+// ------------------------------
+function generateSmartAlerts(sensor) {
+    const alerts = [];
+    
+    // AQI alert
+    if (sensor.air_quality_index > 100) {
+        alerts.push({
+            alert_id: uuidv4(),
+            sensor_id: sensor.sensor_id,
+            timestamp: new Date(),
+            alert_type: 'air_quality_alert',
+            severity: sensor.air_quality_index > 150 ? 'critical' : 'high',
+            message: `AQI is high: ${sensor.air_quality_index}`,
+            battery_low: false,
+            signal_weak: false
+        });
+    }
+
+    // Battery alert
+    if (sensor.battery_level < 30) {
+        alerts.push({
+            alert_id: uuidv4(),
+            sensor_id: sensor.sensor_id,
+            timestamp: new Date(),
+            alert_type: 'battery_low',
+            severity: 'medium',
+            message: `Battery is low: ${sensor.battery_level}%`,
+            battery_low: true,
+            signal_weak: false
+        });
+    }
+
+    // Signal alert
+    if (sensor.signal_strength < 40) {
+        alerts.push({
+            alert_id: uuidv4(),
+            sensor_id: sensor.sensor_id,
+            timestamp: new Date(),
+            alert_type: 'signal_weak',
+            severity: 'medium',
+            message: `Signal is weak: ${sensor.signal_strength}%`,
+            battery_low: false,
+            signal_weak: true
+        });
+    }
+
+    return alerts;
+}
+
+
+function computeSmartStats(sensors) {
+    const now = new Date();
+    const windowStart = new Date(now.getTime() - 5 * 60 * 1000); // last 5 min
+    return Object.values(sensors).map(sensor => ({
+        sensor_id: sensor.sensor_id,
+        window_start: windowStart,
+        window_end: now,
+        total_readings: 1,
+        avg_aqi: sensor.air_quality_index,
+        max_aqi: sensor.air_quality_index,
+        min_aqi: sensor.air_quality_index,
+        avg_pm2_5: sensor.pm2_5,
+        max_pm2_5: sensor.pm2_5,
+        min_pm2_5: sensor.pm2_5,
+        avg_battery: sensor.battery_level,
+        avg_signal: sensor.signal_strength
+    }));
+}
+
+// ------------------------------
+// Cassandra Insert Functions
+// ------------------------------
+async function saveSmartAlerts(alerts) {
+    for (const alert of alerts) {
+        const query = `
+            INSERT INTO smart_sensor_alerts (
+                alert_id, sensor_id, timestamp, alert_type, severity, message, battery_low, signal_weak
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `;
+        const params = [
+            alert.alert_id, alert.sensor_id, alert.timestamp, alert.alert_type,
+            alert.severity, alert.message, alert.battery_low, alert.signal_weak
+        ];
+        await cassandraClient.execute(query, params, { prepare: true });
+    }
+}
+
+async function saveSmartStats(stats) {
+    for (const stat of stats) {
+        const query = `
+            INSERT INTO smart_sensor_stats (
+                sensor_id, window_start, window_end, total_readings,
+                avg_aqi, max_aqi, min_aqi,
+                avg_pm2_5, max_pm2_5, min_pm2_5,
+                avg_battery, avg_signal
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `;
+        const params = [
+            stat.sensor_id, stat.window_start, stat.window_end, stat.total_readings,
+            stat.avg_aqi, stat.max_aqi, stat.min_aqi,
+            stat.avg_pm2_5, stat.max_pm2_5, stat.min_pm2_5,
+            stat.avg_battery, stat.avg_signal
+        ];
+        await cassandraClient.execute(query, params, { prepare: true });
+    }
+}
+
+// ------------------------------
+// Upsert Smart Sensor
+// ------------------------------
+async function upsertSmartSensor(data) {
+    if (!data.sensor_id) return;
+
+    // Update in-memory
+    smartSensorsData[data.sensor_id] = {
+        ...smartSensorsData[data.sensor_id],
+        ...data,
+        timestamp: new Date().toISOString()
+    };
+
+    if (!cassandraConnected) return;
+
+    try {
+        // Insert sensor
+        const query = `
+            INSERT INTO smart_virtual_sensors (
+                sensor_id, sensor_type, location, category,
+                air_quality_index, pm2_5, pm10,
+                temperature, humidity, pressure,
+                wind_speed, wind_direction,
+                battery_level, signal_strength, timestamp
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `;
+
+        const params = [
+            data.sensor_id,
+            data.sensor_type || null,
+            data.location || null,
+            data.category || null,
+            data.air_quality_index ?? null,
+            data.pm2_5 ?? null,
+            data.pm10 ?? null,
+            data.temperature ?? null,
+            data.humidity ?? null,
+            data.pressure ?? null,
+            data.wind_speed ?? null,
+            data.wind_direction ?? null,
+            data.battery_level ?? null,
+            data.signal_strength ?? null,
+            new Date()
+        ];
+
+        await cassandraClient.execute(query, params, { prepare: true });
+
+        // Alerts
+        const alerts = generateSmartAlerts(data);
+        if (alerts.length) await saveSmartAlerts(alerts);
+
+        // Stats
+        const stats = computeSmartStats(smartSensorsData);
+        await saveSmartStats(stats);
+
+        console.log(`✅ Sensor, alerts, stats saved: ${data.sensor_id}`);
+    } catch (err) {
+        console.error('❌ Failed to save sensor data:', err);
+    }
+}
+
+// ------------------------------
+// API Endpoints
+// ------------------------------
+app.post('/api/smart-sensors/:sensorId', async (req, res) => {
+    const sensorData = req.body;
+    sensorData.sensor_id = req.params.sensorId;
+
+    try {
+        await upsertSmartSensor(sensorData);
+
+        // Broadcast via WebSocket
+        wss.clients.forEach(client => {
+            if (client.readyState === WebSocket.OPEN) {
+                client.send(JSON.stringify({ type: 'smart_sensor_update', sensor: sensorData, timestamp: new Date() }));
+            }
+        });
+
+        res.status(200).json({ message: `Sensor updated: ${sensorData.sensor_id}` });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+app.get('/api/smart-sensors', (req, res) => {
+    res.json(Object.values(smartSensorsData));
+});
+
+// Optional: Endpoint to get all smart sensors
+app.get('/api/smart-sensors', (req, res) => {
+    res.json(Object.values(smartSensorsData));
+});
+
 
 app.get("/api/sensors", async (req, res) => {
   if (!cassandraConnected) {
@@ -692,16 +911,22 @@ async function processBatchedAlerts() {
     }
 }
 
-// API Endpoints
+
+let kafkaConsumer = null;
+
+// /api/health endpoint
 app.get('/api/health', (req, res) => {
     res.json({
         status: 'healthy',
         cassandra: cassandraConnected ? 'connected' : 'disconnected',
         kafka: kafkaConsumer ? 'connected' : 'disconnected',
-        websocket: wss.clients.size,
-        timestamp: new Date().toISOString()
+        websocketConnections: wss.clients.size, 
+        uptimeSeconds: Math.floor(process.uptime()),
+        timestamp: new Date().toISOString(),
+        systemVersion: "2.0.0"
     });
 });
+
 
 
 app.get('/api/sensors/latest', async (req, res) => {

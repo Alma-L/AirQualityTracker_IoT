@@ -53,16 +53,14 @@ class AirQualityDataConsumer:
     def init_cassandra(self):
         """Initialize Cassandra keyspace and tables"""
         try:
-            # Create keyspace
             self.cassandra_session.execute(f"""
                 CREATE KEYSPACE IF NOT EXISTS {self.cassandra_keyspace}
                 WITH replication = {{ 'class': 'SimpleStrategy', 'replication_factor': '1' }}
             """)
-            
-            # Use the keyspace
+
             self.cassandra_session.set_keyspace(self.cassandra_keyspace)
-            
-            # Create air quality data table
+
+            # Air quality data table
             self.cassandra_session.execute("""
                 CREATE TABLE IF NOT EXISTS air_quality_data (
                     sensor_id text,
@@ -75,7 +73,7 @@ class AirQualityDataConsumer:
                     pm10 double,
                     aqi text,
                     health_risk text,
-                    visibility_meters int,
+                    visibility_meters double,
                     temperature_celsius double,
                     humidity_percent double,
                     weather_condition text,
@@ -83,22 +81,23 @@ class AirQualityDataConsumer:
                     PRIMARY KEY (sensor_id, timestamp)
                 ) WITH CLUSTERING ORDER BY (timestamp DESC);
             """)
-            
-            # Create alerts table
+
+            # Alerts table
             self.cassandra_session.execute("""
                 CREATE TABLE IF NOT EXISTS air_quality_alerts (
-                    alert_id uuid,
+                    alert_id text,
                     sensor_id text,
                     timestamp timestamp,
                     alert_type text,
                     severity text,
                     message text,
                     aqi_level text,
+                    is_active boolean,
                     PRIMARY KEY (alert_id)
                 );
             """)
-            
-            # Create aggregated data table
+
+            # Aggregated data table
             self.cassandra_session.execute("""
                 CREATE TABLE IF NOT EXISTS air_quality_aggregates (
                     sensor_id text,
@@ -114,12 +113,69 @@ class AirQualityDataConsumer:
                     PRIMARY KEY (sensor_id, window_start)
                 ) WITH CLUSTERING ORDER BY (window_start DESC);
             """)
-            
-            logger.info("Cassandra tables created successfully")
-            
+
+            # Smart Virtual Sensors data table
+            self.cassandra_session.execute("""
+                CREATE TABLE IF NOT EXISTS smart_virtual_sensors (
+                    sensor_id text,
+                    timestamp timestamp,
+                    air_quality_index double,
+                    pm2_5 double,
+                    pm10 double,
+                    temperature double,
+                    humidity double,
+                    pressure double,
+                    wind_speed double,
+                    wind_direction double,
+                    sensor_type text,
+                    location text,
+                    category text,
+                    battery_level double,
+                    signal_strength double,
+                    PRIMARY KEY (sensor_id, timestamp)
+                ) WITH CLUSTERING ORDER BY (timestamp DESC);
+            """)
+
+            # Smart Virtual Sensors alerts table
+            self.cassandra_session.execute("""
+                CREATE TABLE IF NOT EXISTS smart_sensor_alerts (
+                    alert_id text,
+                    sensor_id text,
+                    timestamp timestamp,
+                    alert_type text,
+                    severity text,
+                    message text,
+                    battery_low boolean,
+                    signal_weak boolean,
+                    PRIMARY KEY (alert_id)
+                );
+            """)
+
+            # Smart Virtual Sensors statistics table
+            self.cassandra_session.execute("""
+                CREATE TABLE IF NOT EXISTS smart_sensor_stats (
+                    sensor_id text,
+                    window_start timestamp,
+                    window_end timestamp,
+                    total_readings int,
+                    avg_aqi double,
+                    max_aqi double,
+                    min_aqi double,
+                    avg_pm2_5 double,
+                    max_pm2_5 double,
+                    min_pm2_5 double,
+                    avg_battery double,
+                    avg_signal double,
+                    PRIMARY KEY (sensor_id, window_start)
+                ) WITH CLUSTERING ORDER BY (window_start DESC);
+            """)
+
+            logger.info("✅ All Cassandra tables created successfully")
+
         except Exception as e:
-            logger.error(f"Error initializing Cassandra: {e}")
+            logger.error(f"❌ Error initializing Cassandra: {e}")
             raise
+
     
     def process_air_quality_message(self, message):
         """Process incoming air quality data message"""

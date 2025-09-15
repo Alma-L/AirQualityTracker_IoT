@@ -35,31 +35,27 @@ AirQualityTracker_IoT/
 └── requirements.txt                    # Python dependencies
 ```
 
-## 🚀 Quick Start
 
-### Option 1: Simple Startup (Recommended)
-```bash
-python start.py
-```
+## ▶️ Start the Project  
 
-### Option 2: Manual Setup
-
-1. **Install Dependencies**
+1. **Start Cassandra (database)**  
    ```bash
-   pip install -r requirements.txt
-   ```
+   docker compose up -d
 
-2. **Start Backend Server**
+2. **Backend startup** 
    ```bash
-   cd backend
-   python app.py
-   ```
+   uvicorn backend.app:app --reload --port 5000  
 
-3. **Start Smart Sensors** (in another terminal)
+3. **Start Server** 
    ```bash
-   cd backend
-   python smart_virtual_sensors.py
-   ```
+   cd backend\web-interface 
+   npm install  
+   node server.js
+
+4. **For machine learning analysis**
+   ```bash
+   python backend/web-interface/ml_service.py
+
 
 4. **Access Dashboard**
    - Open your browser to: http://localhost:8000
@@ -83,12 +79,32 @@ python start.py
 - **Temperature & Humidity** - Environmental conditions
 - **Battery & Signal** - Sensor status monitoring
 
+
 ## 🔧 API Endpoints
 
-- `GET /api/sensors` - List all sensors
-- `GET /api/sensors/latest` - Latest readings
-- `GET /api/stats` - System statistics
-- `GET /api/alerts` - Active alerts
+### Sensors
+- `GET /api/sensors` – List all sensors (with type & location info)  
+- `GET /api/sensors/latest` – Latest readings for all sensors  
+- `GET /api/sensors/:sensorId/recent?limit=N` – Recent readings for a specific sensor (default 20)  
+- `POST /api/sensors/:sensorId` – Submit a sensor reading  
+
+### Smart Sensors
+- `GET /api/smart-sensors` – List all smart virtual sensors (latest in-memory data)  
+- `POST /api/smart-sensors/:sensorId` – Update/insert a smart sensor reading (stores alerts & stats)  
+
+### Analytics
+- `GET /api/analytics/:sensorId?hours=N` – Get PM2.5, PM10, and AQI stats for the last N hours (default 24)  
+
+### Alerts
+- `GET /api/alerts?limit=N` – Get active alerts (default 10)  
+
+### ML Analysis
+- `GET /api/ml-analysis?sensor=ID&algorithm=random-forest|svm|kmeans&hours=N` – Run ML analysis for a sensor for the last N hours  
+
+### System
+- `GET /api/stats` – System statistics (total sensors, records, alerts, uptime)  
+- `GET /api/health` – Health check (Cassandra, Kafka, WebSocket status, uptime, system version)  
+
 
 ## 📝 License
 

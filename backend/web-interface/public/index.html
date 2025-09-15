@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <title>Air Quality Tracker IoT v2.0 - Advanced Monitoring</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <link rel="stylesheet" href="/static/style.css" />
+    <link rel="stylesheet" href="style.css" />
     <link rel="icon" type="image/png" href="/static/favicon.png" />
   </head>
   <body>
@@ -16,9 +16,9 @@
       <a href="#recent">📋 Recent Readings</a>
       <a href="#alerts">🚨 Alerts</a>
       <a href="#ml-analysis">🤖 ML Analysis</a>
-      <a href="#health">🏥 System Health</a>
-      <a href="#sensors">🛰️ Sensors</a>
       <a href="#smart-sensors">🌬️ Smart Virtual Sensors</a>
+      <a href="#sensors">🛰️ Sensors</a>
+      <a href="#health">🏥 System Health</a>
     </nav>
 
     <div class="container">
@@ -194,59 +194,35 @@
         ></canvas>
       </section>
 
-      <!-- System Health -->
-      <section class="card health-card" id="health">
-        <h2>🏥 System Health & Performance</h2>
-        <div class="health-grid">
-          <div class="health-item">
-            <span class="health-label">Backend Status:</span>
-            <span id="backendStatus" class="health-value">Checking...</span>
-          </div>
-          <div class="health-item">
-            <span class="health-label">Database:</span>
-            <span class="health-value">In-Memory (Active)</span>
-          </div>
-          <div class="health-item">
-            <span class="health-label">WebSocket:</span>
-            <span id="wsStatus" class="health-value">Connecting...</span>
-          </div>
-          <div class="health-item">
-            <span class="health-label">Last Update:</span>
-            <span id="lastUpdate" class="health-value">Never</span>
-          </div>
-        </div>
-      </section>
-
-      <!-- Sensors Overview -->
-      <section class="card" id="sensors">
-        <h2>🛰️ Sensors Overview</h2>
-        <div class="sensors-grid" id="sensorsGrid">
-          <p class="loading">Loading sensors...</p>
-        </div>
-      </section>
-
       <!-- Smart Virtual Sensors Dashboard -->
       <section class="card smart-sensors-card" id="smart-sensors">
         <h2>🌬️ Smart Virtual Air Quality Sensors</h2>
-        <p class="section-description">Real-time air quality monitoring across major cities in Kosovo with database integration</p>
-        
+        <p class="section-description">
+          Real-time air quality monitoring across major cities in Kosovo with
+          database integration
+        </p>
+
         <!-- Smart Statistics -->
         <div class="smart-stats-grid" id="smartStatsGrid">
           <!-- Statistics will be populated here -->
         </div>
-        
+
         <!-- Kosovo Map -->
         <div class="kosovo-map-container">
           <h3>🗺️ Kosovo Air Quality Map</h3>
-          <p class="map-description">Real-time air quality monitoring across major cities in Kosovo</p>
-          
+          <p class="map-description">
+            Real-time air quality monitoring across major cities in Kosovo
+          </p>
+
           <div class="kosovo-map" id="kosovoMap">
-            <img src="/static/images/kosovo-map.png" 
-                 alt="Kosovo Map" 
-                 class="map-image" />
+            <img
+              src="/images/kosovo-map.png"
+              alt="Kosovo Map"
+              class="map-image"
+            />
             <div id="mapMarkers"></div>
           </div>
-          
+
           <!-- Map Statistics -->
           <div class="map-stats">
             <div class="map-stat-item">
@@ -263,36 +239,72 @@
             </div>
           </div>
         </div>
-        
+
         <!-- Smart Controls -->
         <div class="smart-controls">
-          <button id="smart-refresh" class="btn-primary">🔄 Refresh Data</button>
+          <button id="smart-refresh" class="btn-primary">
+            🔄 Refresh Data
+          </button>
           <button id="smart-export" class="btn-secondary">📊 Export CSV</button>
-          <button id="smart-auto-refresh" class="btn-success">⏰ Auto Refresh</button>
+          <button id="smart-auto-refresh" class="btn-success">
+            ⏰ Auto Refresh
+          </button>
         </div>
-        
-        
+
         <!-- Sensors Grid -->
         <div class="smart-sensors-grid" id="smartSensorsGrid">
           <!-- Smart sensor cards will be populated here -->
         </div>
-        
+
         <div class="smart-status">
           <span class="status-indicator" id="smartStatusIndicator"></span>
           <span id="smartLastUpdate">Last updated: Never</span>
-          <span id="smartAutoRefreshStatus" class="auto-refresh-status">Auto refresh: OFF</span>
+          <span id="smartAutoRefreshStatus" class="auto-refresh-status"
+            >Auto refresh: OFF</span
+          >
+        </div>
+      </section>
+
+      <!-- Sensors Overview -->
+      <section class="card" id="sensors">
+        <h2>🛰️ Sensors Overview</h2>
+        <div class="sensors-grid" id="sensorsGrid">
+          <p class="loading">Loading sensors...</p>
+        </div>
+      </section>
+
+      <!-- System Health -->
+      <section class="card health-card" id="health">
+        <h2>🏥 System Health & Performance</h2>
+        <div class="health-grid">
+          <div class="health-item">
+            <span class="health-label">Backend Status:</span>
+            <span id="backendStatus" class="health-value">Checking...</span>
+          </div>
+          <div class="health-item">
+            <span class="health-label">Database:</span>
+            <span class="health-value" id="dbStatus">(Active)</span>
+          </div>
+          <div class="health-item">
+            <span class="health-label">WebSocket:</span>
+            <span id="wsStatus" class="health-value">Connecting...</span>
+          </div>
+          <div class="health-item">
+            <span class="health-label">Last Update:</span>
+            <span id="lastUpdate" class="health-value">Never</span>
+          </div>
         </div>
       </section>
     </div>
 
     <footer>
       <small
-        >Backend: http://localhost:8000 | Version 2.0 | Real-time updates via
+        >Backend: http://localhost:8000 | Real-time updates via
         WebSocket | AQI & Analytics</small
       >
     </footer>
 
-    <script src="/static/app.js"></script>
+    <script src="app.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   </body>
 </html>
