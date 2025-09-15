@@ -52,3 +52,53 @@ CREATE TABLE IF NOT EXISTS air_quality_aggregates (
 ) WITH CLUSTERING ORDER BY (window_start DESC);
 
 ALTER TABLE air_quality_alerts ADD is_active boolean;
+
+-- Smart Virtual Sensors data table
+CREATE TABLE IF NOT EXISTS smart_virtual_sensors (
+    sensor_id text,
+    timestamp timestamp,
+    air_quality_index double,
+    pm2_5 double,
+    pm10 double,
+    temperature double,
+    humidity double,
+    pressure double,
+    wind_speed double,
+    wind_direction double,
+    sensor_type text,
+    location text,
+    category text,
+    battery_level double,
+    signal_strength double,
+    PRIMARY KEY (sensor_id, timestamp)
+) WITH CLUSTERING ORDER BY (timestamp DESC);
+
+-- Smart Virtual Sensors alerts table
+CREATE TABLE IF NOT EXISTS smart_sensor_alerts (
+    alert_id text,
+    sensor_id text,
+    timestamp timestamp,
+    alert_type text,
+    severity text,
+    message text,
+    battery_low boolean,
+    signal_weak boolean,
+    PRIMARY KEY (alert_id)
+);
+
+-- Smart Virtual Sensors statistics table
+CREATE TABLE IF NOT EXISTS smart_sensor_stats (
+    sensor_id text,
+    window_start timestamp,
+    window_end timestamp,
+    total_readings int,
+    avg_aqi double,
+    max_aqi double,
+    min_aqi double,
+    avg_pm2_5 double,
+    max_pm2_5 double,
+    min_pm2_5 double,
+    avg_battery double,
+    avg_signal double,
+    PRIMARY KEY (sensor_id, window_start)
+) WITH CLUSTERING ORDER BY (window_start DESC);

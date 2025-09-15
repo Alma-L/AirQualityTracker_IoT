@@ -886,7 +886,10 @@ function updateSmartStats(data) {
   const onlineSensors = stats.filter(s => s.battery_level > 0).length;
   const avgBattery = Math.round(stats.reduce((sum, s) => sum + s.battery_level, 0) / totalSensors);
   
-  document.getElementById('smartStatsGrid').innerHTML = `
+  const statsGrid = document.getElementById('smartStatsGrid');
+  if (!statsGrid) return;
+  
+  statsGrid.innerHTML = `
     <div class="smart-stat-card">
       <div class="smart-stat-value">${totalSensors}</div>
       <div class="smart-stat-label">Total Sensors</div>
@@ -906,58 +909,72 @@ function updateSmartStats(data) {
   `;
 }
 
+
 function updateSmartSensors(data) {
   const sensorsGrid = document.getElementById('smartSensorsGrid');
+  if (!sensorsGrid) return;
+  
   sensorsGrid.innerHTML = '';
   
-  Object.values(data).forEach(sensor => {
+  // Handle both array and object data formats
+  const sensors = Array.isArray(data) ? data : Object.values(data);
+  
+  sensors.forEach(sensor => {
     const sensorCard = document.createElement('div');
     sensorCard.className = 'smart-sensor-card';
+    
+    // Extract city name from location or sensor_id
+    const city = sensor.city || sensor.sensor_id?.split('-')[1] || 'Unknown';
+    const location = sensor.location || 'Unknown Location';
+    
     sensorCard.innerHTML = `
       <div class="smart-sensor-header">
-        <div class="smart-sensor-type">${sensor.sensor_type}</div>
-        <div class="smart-sensor-category">${sensor.category}</div>
+        <div class="smart-sensor-type">${sensor.sensor_type || 'Smart Sensor'}</div>
+        <div class="smart-sensor-category">${sensor.category || 'unknown'}</div>
       </div>
-      <div class="smart-sensor-location">📍 ${sensor.city} - ${sensor.location}</div>
+      <div class="smart-sensor-location">📍 ${city} - ${location}</div>
       <div class="smart-sensor-data">
         <div class="smart-data-item">
           <div class="smart-data-value">
-            ${sensor.air_quality_index}
-            <span class="aqi-indicator ${getSmartAQIClass(sensor.air_quality_index)}">AQI</span>
+            ${Math.round(sensor.air_quality_index || 0)}
+            <span class="aqi-indicator ${getSmartAQIClass(sensor.air_quality_index || 0)}">AQI</span>
           </div>
           <div class="smart-data-label">Air Quality Index</div>
         </div>
         <div class="smart-data-item">
-          <div class="smart-data-value">${sensor.pm2_5} μg/m³</div>
+          <div class="smart-data-value">${(sensor.pm2_5 || 0).toFixed(1)} μg/m³</div>
           <div class="smart-data-label">PM2.5</div>
         </div>
         <div class="smart-data-item">
-          <div class="smart-data-value">${sensor.pm10} μg/m³</div>
+          <div class="smart-data-value">${(sensor.pm10 || 0).toFixed(1)} μg/m³</div>
           <div class="smart-data-label">PM10</div>
         </div>
         <div class="smart-data-item">
-          <div class="smart-data-value">${sensor.temperature}°C</div>
+          <div class="smart-data-value">${(sensor.temperature || 0).toFixed(1)}°C</div>
           <div class="smart-data-label">Temperature</div>
         </div>
         <div class="smart-data-item">
-          <div class="smart-data-value">${sensor.humidity}%</div>
+          <div class="smart-data-value">${(sensor.humidity || 0).toFixed(1)}%</div>
           <div class="smart-data-label">Humidity</div>
         </div>
         <div class="smart-data-item">
           <div class="smart-data-value">
-            ${sensor.battery_level}%
-            <span class="battery-indicator ${getSmartBatteryClass(sensor.battery_level)}">Battery</span>
+            ${(sensor.battery_level || 0).toFixed(1)}%
+            <span class="battery-indicator ${getSmartBatteryClass(sensor.battery_level || 0)}">Battery</span>
           </div>
           <div class="smart-data-label">Battery Level</div>
         </div>
         <div class="smart-data-item">
-          <div class="smart-data-value">${sensor.pressure} hPa</div>
+          <div class="smart-data-value">${(sensor.pressure || 0).toFixed(1)} hPa</div>
           <div class="smart-data-label">Pressure</div>
         </div>
         <div class="smart-data-item">
-          <div class="smart-data-value">${sensor.wind_speed} m/s</div>
+          <div class="smart-data-value">${(sensor.wind_speed || 0).toFixed(1)} m/s</div>
           <div class="smart-data-label">Wind Speed</div>
         </div>
+      </div>
+      <div class="smart-sensor-timestamp">
+        <small>Last updated: ${new Date(sensor.timestamp || Date.now()).toLocaleString()}</small>
       </div>
     `;
     sensorsGrid.appendChild(sensorCard);
@@ -980,7 +997,7 @@ function refreshSmartData() {
     sensor.timestamp = new Date().toISOString();
   });
   
-  // Check if elements exist before updating
+  // Update UI elements
   const statsGrid = document.getElementById('smartStatsGrid');
   const sensorsGrid = document.getElementById('smartSensorsGrid');
   const lastUpdate = document.getElementById('smartLastUpdate');
@@ -988,14 +1005,10 @@ function refreshSmartData() {
   
   if (statsGrid) {
     updateSmartStats(sampleSmartData);
-  } else {
-    console.error('smartStatsGrid element not found');
   }
   
   if (sensorsGrid) {
     updateSmartSensors(sampleSmartData);
-  } else {
-    console.error('smartSensorsGrid element not found');
   }
   
   if (lastUpdate) {

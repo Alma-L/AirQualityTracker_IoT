@@ -28,6 +28,8 @@ sensors_data = {}
 alerts_history = []
 system_start_time = datetime.utcnow()
 
+# Smart sensors are now handled client-side with sample data
+
 # AQI calculation functions
 def calculate_aqi(pm25, pm10):
     """Calculate Air Quality Index based on PM2.5 and PM10 values"""
@@ -364,7 +366,6 @@ def get_all_sensors():
         })
 
     return {"sensors": sensors_list}
-
 
 # WebSocket support for real-time updates
 @app.websocket("/ws")

@@ -227,7 +227,13 @@
 
       <!-- Smart Virtual Sensors Dashboard -->
       <section class="card smart-sensors-card" id="smart-sensors">
-        <h2>🌬️ Air Quality Monitoring in Kosovo</h2>
+        <h2>🌬️ Smart Virtual Air Quality Sensors</h2>
+        <p class="section-description">Real-time air quality monitoring across major cities in Kosovo with database integration</p>
+        
+        <!-- Smart Statistics -->
+        <div class="smart-stats-grid" id="smartStatsGrid">
+          <!-- Statistics will be populated here -->
+        </div>
         
         <!-- Kosovo Map -->
         <div class="kosovo-map-container">
@@ -258,11 +264,13 @@
           </div>
         </div>
         
-        <!-- Simple Controls -->
-        <div class="simple-controls">
+        <!-- Smart Controls -->
+        <div class="smart-controls">
           <button id="smart-refresh" class="btn-primary">🔄 Refresh Data</button>
           <button id="smart-export" class="btn-secondary">📊 Export CSV</button>
+          <button id="smart-auto-refresh" class="btn-success">⏰ Auto Refresh</button>
         </div>
+        
         
         <!-- Sensors Grid -->
         <div class="smart-sensors-grid" id="smartSensorsGrid">
@@ -272,6 +280,7 @@
         <div class="smart-status">
           <span class="status-indicator" id="smartStatusIndicator"></span>
           <span id="smartLastUpdate">Last updated: Never</span>
+          <span id="smartAutoRefreshStatus" class="auto-refresh-status">Auto refresh: OFF</span>
         </div>
       </section>
     </div>
