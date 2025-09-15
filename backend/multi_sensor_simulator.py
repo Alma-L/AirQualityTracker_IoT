@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Multi-Sensor Air Quality Simulator
-Simulates 3 different types of sensors with realistic characteristics
+Simulates 6 different types of sensors with realistic characteristics
 """
 
 import time

@@ -46,18 +46,22 @@ AirQualityTracker_IoT/
    ```bash
    uvicorn backend.app:app --reload --port 5000  
 
-3. **Start Server** 
+3. **Start Multi-Sensor Simulator** 
+   ```bash 
+   python multi_sensor_simulator.py
+
+4. **Start Server** 
    ```bash
    cd backend\web-interface 
    npm install  
    node server.js
 
-4. **For machine learning analysis**
+5. **For machine learning analysis**
    ```bash
    python backend/web-interface/ml_service.py
 
 
-4. **Access Dashboard**
+6. **Access Dashboard**
    - Open your browser to: http://localhost:8000
    - View the Kosovo map with real-time sensor data
 
