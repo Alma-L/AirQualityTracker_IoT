@@ -14,11 +14,11 @@ CREATE TABLE IF NOT EXISTS air_quality_data (
     longitude double,
     pm2_5 double,
     pm10 double,
-    aqi text,
+    aqi int,
     health_risk text,
     visibility_meters double,
-    temperature_celsius double,
-    humidity_percent double,
+    temperature double,
+    humidity double,
     weather_condition text,
     pressure_hpa double,
     PRIMARY KEY (sensor_id, timestamp)
@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS air_quality_alerts (
     alert_type text,
     severity text,
     message text,
+    is_active boolean,
     aqi_level text,
     PRIMARY KEY (alert_id)
 );
@@ -51,13 +52,13 @@ CREATE TABLE IF NOT EXISTS air_quality_aggregates (
     PRIMARY KEY (sensor_id, window_start)
 ) WITH CLUSTERING ORDER BY (window_start DESC);
 
-ALTER TABLE air_quality_alerts ADD is_active boolean;
-
 -- Smart Virtual Sensors data table
 CREATE TABLE IF NOT EXISTS smart_virtual_sensors (
     sensor_id text,
     timestamp timestamp,
     air_quality_index double,
+    city text,
+    coordinates text,
     pm2_5 double,
     pm10 double,
     temperature double,

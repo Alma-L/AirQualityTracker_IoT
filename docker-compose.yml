@@ -1,5 +1,36 @@
 version: '3.8'
 services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.0
+    container_name: zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    networks:
+      - airquality-network
+
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    container_name: kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,PLAINTEXT_HOST://kafka:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_DELETE_TOPIC_ENABLE: "true"
+    networks:
+      - airquality-network
+
   cassandra:
     image: cassandra:4.1
     container_name: cassandra
@@ -10,8 +41,16 @@ services:
       - CASSANDRA_START_RPC=true
       - MAX_HEAP_SIZE=512M
       - HEAP_NEWSIZE=100M
+      - CASSANDRA_RPC_ADDRESS=0.0.0.0  # ← ADD THIS LINE
+      - CASSANDRA_BROADCAST_RPC_ADDRESS=127.0.0.1  # ← AND THIS LINE
     healthcheck:
       test: ["CMD-SHELL", "cqlsh -e 'DESCRIBE keyspaces'"]
       interval: 20s
       timeout: 10s
       retries: 10
+    networks:
+      - airquality-network
+
+networks:
+  airquality-network:
+    driver: bridge
