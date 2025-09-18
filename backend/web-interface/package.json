@@ -5,7 +5,11 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "nodemon server.js"
+    "spark": "node spark_server.js",
+    "simple": "node simple_spark_server.js",
+    "dev": "nodemon server.js",
+    "dev-spark": "nodemon spark_server.js",
+    "dev-simple": "nodemon simple_spark_server.js"
   },
   "dependencies": {
     "axios": "^1.11.0",
@@ -14,6 +18,7 @@
     "express": "^4.21.2",
     "kafka-node": "^5.0.0",
     "twilio": "^4.19.0",
+    "uuid": "^9.0.0",
     "ws": "^8.18.3"
   },
   "devDependencies": {

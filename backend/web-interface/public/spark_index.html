@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <title>Air Quality Tracker IoT v2.0 - Spark Streaming</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="style.css" />
+    <link rel="icon" type="image/png" href="/static/favicon.png" />
+    <style>
+        .spark-controls {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+        }
+        .spark-controls h3 {
+            margin: 0 0 1rem 0;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .spark-buttons {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+        .spark-btn {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+        .spark-btn.start {
+            background: #4CAF50;
+            color: white;
+        }
+        .spark-btn.start:hover {
+            background: #45a049;
+        }
+        .spark-btn.stop {
+            background: #f44336;
+            color: white;
+        }
+        .spark-btn.stop:hover {
+            background: #da190b;
+        }
+        .status {
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .status.success {
+            background: #4CAF50;
+            color: white;
+        }
+        .status.error {
+            background: #f44336;
+            color: white;
+        }
+        .status.warning {
+            background: #ff9800;
+            color: white;
+        }
+        .connection-status {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+    <nav class="sidebar">
+        <h1>Air Quality Tracker</h1>
+        <h2>🚀 Spark Streaming</h2>
+        <a href="#stats">📊 Statistics</a>
+        <a href="#latest">📡 Latest Readings</a>
+        <a href="#analytics">📈 Analytics</a>
+        <a href="#recent">📋 Recent Readings</a>
+        <a href="#alerts">🚨 Alerts</a>
+        <a href="#ml-analysis">🤖 ML Analysis</a>
+        <a href="#smart-sensors">🌬️ Smart Virtual Sensors</a>
+        <a href="#sensors">🛰️ Sensors</a>
+        <a href="#health">🏥 System Health</a>
+    </nav>
+
+    <div class="container">
+        <!-- Spark Streaming Controls -->
+        <section class="card spark-controls" id="spark-controls">
+            <h3>🚀 Spark Streaming Controls</h3>
+            <div class="spark-buttons">
+                <button id="startSpark" class="spark-btn start">Start Spark Streaming</button>
+                <button id="stopSpark" class="spark-btn stop">Stop Spark Streaming</button>
+            </div>
+            <div class="connection-status">
+                <span>Spark Status:</span>
+                <span id="sparkStatus" class="status error">Stopped</span>
+                <span>|</span>
+                <span>WebSocket:</span>
+                <span id="connectionStatus" class="status error">Disconnected</span>
+            </div>
+        </section>
+
+        <!-- System Statistics -->
+        <section class="card stats-card" id="stats">
+            <h2>📊 System Statistics</h2>
+            <div class="stats-grid">
+                <div class="stat-item">
+                    <span class="stat-label">Active Sensors:</span>
+                    <span id="activeSensors" class="stat-value">Loading...</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Total Readings:</span>
+                    <span id="totalReadings" class="stat-value">Loading...</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Active Alerts:</span>
+                    <span id="activeAlerts" class="stat-value">Loading...</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Uptime:</span>
+                    <span id="uptime" class="stat-value">Loading...</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Average AQI:</span>
+                    <span id="averageAQI" class="stat-value">Loading...</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Latest Readings -->
+        <section class="card" id="latest">
+            <h2>📡 Latest Readings</h2>
+            <div class="controls">
+                <button id="refresh" class="btn">🔄 Refresh</button>
+                <button id="exportCSV" class="btn">📥 Export CSV</button>
+            </div>
+            <div id="latestGrid" class="latest-grid">
+                <em>Loading latest readings...</em>
+            </div>
+        </section>
+
+        <!-- Analytics -->
+        <section class="card" id="analytics">
+            <h2>📈 Analytics</h2>
+            <div class="controls">
+                <select id="analytics-sensor">
+                    <option value="sensor-urban-1">sensor-urban-1</option>
+                    <option value="sensor-industrial-1">sensor-industrial-1</option>
+                    <option value="sensor-residential-1">sensor-residential-1</option>
+                    <option value="sensor-mobile-1">sensor-mobile-1</option>
+                    <option value="sensor-wearable-1">sensor-wearable-1</option>
+                    <option value="sensor-drone-1">sensor-drone-1</option>
+                </select>
+                <select id="analytics-hours">
+                    <option value="1">Last 1 hour</option>
+                    <option value="6">Last 6 hours</option>
+                    <option value="24" selected>Last 24 hours</option>
+                    <option value="168">Last week</option>
+                </select>
+                <button id="load-analytics" class="btn">Load Analytics</button>
+            </div>
+            <div id="analyticsContent">
+                <p class="error">Select a sensor and time period to load analytics</p>
+            </div>
+        </section>
+
+        <!-- Recent Readings -->
+        <section class="card" id="recent">
+            <h2>📋 Recent Readings</h2>
+            <form id="sensor-form" class="controls">
+                <select id="sensor-id" required>
+                    <option value="">Select Sensor</option>
+                </select>
+                <input type="number" id="limit" placeholder="Limit" value="20" min="1" max="100" />
+                <button type="submit" class="btn">Load Recent</button>
+            </form>
+            <table id="recent-table">
+                <thead>
+                    <tr>
+                        <th>PM2.5</th>
+                        <th>PM10</th>
+                        <th>AQI</th>
+                        <th>Temperature</th>
+                        <th>Humidity</th>
+                        <th>Timestamp</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td colspan="6">Select a sensor to load recent readings</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <!-- ML Analysis -->
+        <section class="card" id="ml-analysis">
+            <h2>🤖 ML Analysis</h2>
+            <div class="controls">
+                <select id="ml-sensor">
+                    <option value="sensor-urban-1">sensor-urban-1</option>
+                    <option value="sensor-industrial-1">sensor-industrial-1</option>
+                    <option value="sensor-residential-1">sensor-residential-1</option>
+                    <option value="sensor-mobile-1">sensor-mobile-1</option>
+                    <option value="sensor-wearable-1">sensor-wearable-1</option>
+                    <option value="sensor-drone-1">sensor-drone-1</option>
+                </select>
+                <select id="ml-algorithm">
+                    <option value="random-forest">Random Forest</option>
+                    <option value="svm">SVM</option>
+                    <option value="kmeans">K-Means</option>
+                </select>
+                <select id="ml-hours">
+                    <option value="1">Last 1 hour</option>
+                    <option value="6">Last 6 hours</option>
+                    <option value="24" selected>Last 24 hours</option>
+                    <option value="168">Last week</option>
+                </select>
+                <button id="run-ml" class="btn">Run Analysis</button>
+            </div>
+            <div id="mlResults">
+                <p>Select parameters and click "Run Analysis" to start ML analysis</p>
+            </div>
+            <canvas id="mlChart" width="800" height="400"></canvas>
+        </section>
+
+        <!-- System Health -->
+        <section class="card" id="health">
+            <h2>🏥 System Health</h2>
+            <div class="health-grid">
+                <div class="health-item">
+                    <span class="health-label">Backend Status:</span>
+                    <span id="backendStatus" class="health-value">Unknown</span>
+                </div>
+                <div class="health-item">
+                    <span class="health-label">WebSocket Connections:</span>
+                    <span id="wsStatus" class="health-value">0</span>
+                </div>
+                <div class="health-item">
+                    <span class="health-label">Database Status:</span>
+                    <span id="dbStatus" class="health-value">Unknown</span>
+                </div>
+                <div class="health-item">
+                    <span class="health-label">Last Update:</span>
+                    <span id="lastUpdate" class="health-value">-</span>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- Include Chart.js for ML analysis -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Include the Spark-enabled JavaScript -->
+    <script src="spark_app.js"></script>
+</body>
+</html>
+

@@ -1,0 +1,34 @@
+# Air Quality Tracker IoT - Spark Streaming Requirements
+# Core dependencies
+pyspark==3.4.0
+pandas==2.0.3
+numpy==1.24.3
+
+# Database connectivity
+cassandra-driver==3.28.0
+
+# Web framework
+fastapi==0.104.1
+uvicorn==0.24.0
+
+# Data processing
+kafka-python==2.0.2
+
+# Utilities
+python-dotenv==1.0.0
+asyncio-mqtt==0.13.0
+
+# Optional: For enhanced ML capabilities
+scikit-learn==1.3.0
+matplotlib==3.7.2
+seaborn==0.12.2
+
+# Optional: For data visualization
+plotly==5.17.0
+dash==2.14.1
+
+# Development
+pytest==7.4.3
+black==23.9.1
+flake8==6.1.0
+

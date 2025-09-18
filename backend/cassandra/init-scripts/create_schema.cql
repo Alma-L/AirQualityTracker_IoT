@@ -21,6 +21,15 @@ CREATE TABLE IF NOT EXISTS air_quality_data (
     humidity double,
     weather_condition text,
     pressure_hpa double,
+    wind_speed double,
+    wind_direction double,
+    co2 double,
+    no2 double,
+    o3 double,
+    battery_level double,
+    signal_strength double,
+    firmware_version text,
+    last_calibration text,
     PRIMARY KEY (sensor_id, timestamp)
 ) WITH CLUSTERING ORDER BY (timestamp DESC);
 
