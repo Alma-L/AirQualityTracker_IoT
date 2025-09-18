@@ -603,6 +603,16 @@ app.get("/api/stats", async (req, res) => {
       (r) => r.is_active === true
     ).length;
 
+    // average AQI
+    const aqiRows = await cassandraClient.execute(
+      "SELECT aqi FROM air_quality_data"
+    );
+    const aqiValues = aqiRows.rows.map((r) => parseFloat(r.aqi)).filter(v => !isNaN(v));
+    const averageAQI =
+      aqiValues.length > 0
+        ? aqiValues.reduce((sum, v) => sum + v, 0) / aqiValues.length
+        : null;
+
     res.json({
       sensorCount,
       totalRecords,
@@ -610,6 +620,7 @@ app.get("/api/stats", async (req, res) => {
       uptimeSeconds: Math.floor(process.uptime()),
       systemVersion: "2.0.0",
       sensors: sensorIds.map((id) => ({ id })),
+      averageAQI
     });
   } catch (error) {
     console.error("❌ Error in /api/stats:", error);
@@ -806,20 +817,20 @@ async function saveSmartAlerts(alerts) {
   }
 }
 
+// Save computed smart stats -> send each stat individually to Kafka
 async function saveSmartStats(stats) {
-  if (stats.length === 0) return;
+  if (!stats || stats.length === 0) return;
 
   try {
-    const success = await sendToKafka("smart-sensor-stats", stats);
-    if (success) {
-      console.log(`✅ ${stats.length} stats sent to Kafka`);
-    } else {
-      console.warn("⚠️ Failed to send stats to Kafka");
+    for (const stat of stats) {
+      await sendToKafka("smart-sensor-stats", stat);
     }
-  } catch (error) {
-    console.error("❌ Error sending stats to Kafka:", error);
+    console.log(`✅ Sent ${stats.length} smart stats to Kafka`);
+  } catch (err) {
+    console.error("❌ Error saving smart stats:", err);
   }
 }
+
 
 async function upsertSmartSensor(data) {
   if (!data.sensor_id) return;
@@ -827,8 +838,7 @@ async function upsertSmartSensor(data) {
   // Update in-memory
   smartSensorsData[data.sensor_id] = {
     ...smartSensorsData[data.sensor_id],
-    ...data,
-    timestamp: new Date().toISOString(),
+    ...data
   };
 
   try {
@@ -876,7 +886,6 @@ app.post("/api/smart-sensors/:sensorId", async (req, res) => {
           client.send(JSON.stringify({
             type: "smart_sensor_update",
             sensor: sensorData,
-            timestamp: new Date(),
           }));
         }
       });

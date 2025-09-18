@@ -99,16 +99,25 @@ function getAQICategory(aqi) {
 // Load main statistics
 async function loadStats() {
   try {
-    const data = await fetchJSON(`${API_BASE}/stats`);
+  const data = await fetchJSON(`${API_BASE}/stats`);
 
     // Update main stats
-    document.getElementById("activeSensors").textContent = data.sensorCount || 0;
-    document.getElementById("totalReadings").textContent = data.totalRecords || 0;
-    document.getElementById("activeAlerts").textContent = data.activeAlerts || 0;
+    document.getElementById("activeSensors").textContent =
+      data.sensorCount || 0;
+    document.getElementById("totalReadings").textContent =
+      data.totalRecords || 0;
+    document.getElementById("activeAlerts").textContent =
+      data.activeAlerts || 0;
 
     const uptimeHours = Math.floor((data.uptimeSeconds || 0) / 3600);
     const uptimeMinutes = Math.floor(((data.uptimeSeconds || 0) % 3600) / 60);
-    document.getElementById("uptime").textContent = `${uptimeHours}h ${uptimeMinutes}m`;
+    document.getElementById(
+      "uptime"
+  ).textContent = `${uptimeHours}h ${uptimeMinutes}m`;
+
+    // Update average AQI
+    document.getElementById("averageAQI").textContent =
+      data.averageAQI !== undefined ? data.averageAQI.toFixed(1) : "N/A";
 
     // Update sensor list
     if (data.sensors && data.sensors.length > 0) {
@@ -120,6 +129,7 @@ async function loadStats() {
     document.getElementById("totalReadings").textContent = "Error";
     document.getElementById("activeAlerts").textContent = "Error";
     document.getElementById("uptime").textContent = "Error";
+    document.getElementById("averageAQI").textContent = "Error";
   }
 }
 
@@ -131,7 +141,7 @@ function updateSensorList(sensors) {
   sensorListElement.innerHTML = "";
 
   sensors.forEach((sensorObj) => {
-    const sensorId = sensorObj.id; 
+    const sensorId = sensorObj.id;
 
     let sensorType = "Unknown";
     let location = "Unknown";
@@ -174,7 +184,7 @@ function updateSensorList(sensors) {
 
 async function loadSensors() {
   try {
-    const res = await fetch(`${API_BASE}/sensors`);
+  const res = await fetch(`${API_BASE}/sensors`);
     if (!res.ok) throw new Error("Failed to load sensors");
 
     let sensors = await res.json();
@@ -208,7 +218,7 @@ async function loadSensors() {
 // Load alerts
 async function loadAlerts() {
   try {
-    const alerts = await fetchJSON(`${API_BASE}/alerts?limit=10`);
+  const alerts = await fetchJSON(`${API_BASE}/alerts?limit=10`);
     updateAlerts(alerts);
   } catch (err) {
     console.error("Error loading alerts:", err);
@@ -232,21 +242,20 @@ function updateAlerts(alerts) {
 
   alertsContainer.innerHTML = "";
   alerts.forEach((alert) => {
-  const alertElement = document.createElement("div");
-  alertElement.className = `alert alert-${alert.severity.toLowerCase()}`; 
-  alertElement.innerHTML = `
+    const alertElement = document.createElement("div");
+  alertElement.className = `alert alert-${alert.severity.toLowerCase()}`;
+    alertElement.innerHTML = `
       <div class="alert-header">
           <span class="alert-type">${alert.type}</span>
-          <span class="alert-severity ${alert.severity.toLowerCase()}">${alert.severity}</span>
+          <span class="alert-severity ${alert.severity.toLowerCase()}">${
+      alert.severity
+    }</span>
       </div>
       <p class="alert-message">${alert.message}</p>
-      <div class="alert-details">
-          <small>Sensor: ${alert.sensor_id} | ${new Date(alert.timestamp).toLocaleString()}</small>
-      </div>
   `;
 
-  alertsContainer.appendChild(alertElement);
-});
+    alertsContainer.appendChild(alertElement);
+  });
 }
 
 async function loadAnalytics(sensorId, hours = 24) {
@@ -266,11 +275,11 @@ async function loadAnalytics(sensorId, hours = 24) {
     updateAnalyticsDisplay(analytics);
   } catch (err) {
     console.error("Detailed Error loading analytics:", err);
-    document.getElementById("analytics").innerHTML =
-      `<p class="error">Error loading analytics: ${err.message}</p>`;
+    document.getElementById(
+      "analytics"
+    ).innerHTML = `<p class="error">Error loading analytics: ${err.message}</p>`;
   }
 }
-
 
 //update analytics display
 function updateAnalyticsDisplay(analytics) {
@@ -278,7 +287,7 @@ function updateAnalyticsDisplay(analytics) {
   if (!analyticsContent) return;
 
   if (analytics.error) {
-    analyticsContent.innerHTML = `<p class="error">${analytics.error}</p>`;
+  analyticsContent.innerHTML = `<p class="error">${analytics.error}</p>`;
     return;
   }
 
@@ -325,7 +334,7 @@ async function fetchJSON(url) {
 let latestLoading = false;
 
 async function loadLatest() {
-  if (latestLoading) return; 
+  if (latestLoading) return;
   latestLoading = true;
 
   const grid = document.getElementById("latestGrid");
@@ -335,16 +344,16 @@ async function loadLatest() {
 
   try {
     const data = await fetchJSON(`${API_BASE}/sensors/latest`);
-    grid.innerHTML = ""; 
+    grid.innerHTML = "";
 
     if (!data || data.length === 0) {
       grid.innerHTML = "<em>No data yet. Start the sensors.</em>";
       return;
     }
 
-    const seenSensors = new Set(); 
+    const seenSensors = new Set();
     data.forEach((row) => {
-      if (seenSensors.has(row.sensor_id)) return; 
+      if (seenSensors.has(row.sensor_id)) return;
       seenSensors.add(row.sensor_id);
 
       const sensorType = row.area_type || "Unknown";
@@ -371,7 +380,9 @@ async function loadLatest() {
           <p><strong>Humidity:</strong> ${row.humidity_percent ?? "-"} %</p>
         </div>
         <p class="health-message">${row.health_risk || ""}</p>
-        <p class="timestamp"><small>${new Date(row.timestamp).toLocaleString()}</small></p>
+        <p class="timestamp"><small>${new Date(
+          row.timestamp
+        ).toLocaleString()}</small></p>
       `;
       grid.appendChild(el);
     });
@@ -692,35 +703,38 @@ document.getElementById("analytics-hours").addEventListener("change", () => {
 });
 
 async function updateSystemHealth() {
-    try {
-        const response = await fetch('/api/health');
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+  try {
+    const response = await fetch("/api/health");
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
-        const health = await response.json();
+    const health = await response.json();
 
-        // Update UI elements
-        document.getElementById('backendStatus').textContent = health.status || 'Unknown';
-        document.getElementById('wsStatus').textContent = health.websocketConnections ?? '0';
-        document.getElementById('lastUpdate').textContent = new Date(health.timestamp).toLocaleString();
+    // Update UI elements
+    document.getElementById("backendStatus").textContent =
+      health.status || "Unknown";
+    document.getElementById("wsStatus").textContent =
+      health.websocketConnections ?? "0";
+    document.getElementById("lastUpdate").textContent = new Date(
+      health.timestamp
+    ).toLocaleString();
 
-        // Update DB status
-        const dbElement = document.getElementById('dbStatus');
-        if (dbElement) {
-            dbElement.textContent = health.cassandra === 'connected' 
-                ? 'Connected' 
-                : 'Disconnected';
-            
-            dbElement.className = `health-value status ${health.cassandra === 'connected' ? 'connected' : 'disconnected'}`;
-        }
+    // Update DB status
+    const dbElement = document.getElementById("dbStatus");
+    if (dbElement) {
+      dbElement.textContent =
+        health.cassandra === "connected" ? "Connected" : "Disconnected";
 
-    } catch (error) {
-        console.error('Error fetching system health:', error);
-        document.getElementById('backendStatus').textContent = 'Error';
-        document.getElementById('wsStatus').textContent = 'Error';
-        document.getElementById('lastUpdate').textContent = '-';
+      dbElement.className = `health-value status ${
+        health.cassandra === "connected" ? "connected" : "disconnected"
+      }`;
     }
+  } catch (error) {
+    console.error("Error fetching system health:", error);
+    document.getElementById("backendStatus").textContent = "Error";
+    document.getElementById("wsStatus").textContent = "Error";
+    document.getElementById("lastUpdate").textContent = "-";
+  }
 }
-
 
 const sensorsGrid = document.getElementById("sensorsGrid");
 
@@ -760,7 +774,6 @@ document.addEventListener("DOMContentLoaded", function () {
   }, 60000);
 });
 
-
 // Smart Virtual Sensors functionality
 let smartSensorsData = {};
 let smartAutoRefreshInterval = null;
@@ -785,7 +798,6 @@ const sampleSmartData = {
     wind_direction: 180,
     battery_level: 87.5,
     signal_strength: 85.2,
-    timestamp: new Date().toISOString()
   },
   "smart-peja-002": {
     sensor_id: "smart-peja-002",
@@ -804,7 +816,6 @@ const sampleSmartData = {
     wind_direction: 225,
     battery_level: 92.1,
     signal_strength: 90.5,
-    timestamp: new Date().toISOString()
   },
   "smart-prizren-003": {
     sensor_id: "smart-prizren-003",
@@ -823,7 +834,6 @@ const sampleSmartData = {
     wind_direction: 315,
     battery_level: 95.3,
     signal_strength: 88.7,
-    timestamp: new Date().toISOString()
   },
   "smart-gjakova-004": {
     sensor_id: "smart-gjakova-004",
@@ -842,7 +852,6 @@ const sampleSmartData = {
     wind_direction: 270,
     battery_level: 78.9,
     signal_strength: 75.8,
-    timestamp: new Date().toISOString()
   },
   "smart-mitrovica-005": {
     sensor_id: "smart-mitrovica-005",
@@ -861,7 +870,6 @@ const sampleSmartData = {
     wind_direction: 315,
     battery_level: 65.3,
     signal_strength: 95.7,
-    timestamp: new Date().toISOString()
   },
   "smart-ferizaj-006": {
     sensor_id: "smart-ferizaj-006",
@@ -880,7 +888,6 @@ const sampleSmartData = {
     wind_direction: 0,
     battery_level: 95.2,
     signal_strength: 60.3,
-    timestamp: new Date().toISOString()
   },
   "smart-gjilan-007": {
     sensor_id: "smart-gjilan-007",
@@ -899,7 +906,6 @@ const sampleSmartData = {
     wind_direction: 200,
     battery_level: 82.6,
     signal_strength: 70.9,
-    timestamp: new Date().toISOString()
   },
   "smart-vushtrri-008": {
     sensor_id: "smart-vushtrri-008",
@@ -918,25 +924,24 @@ const sampleSmartData = {
     wind_direction: 190,
     battery_level: 89.3,
     signal_strength: 78.4,
-    timestamp: new Date().toISOString()
-  }
+  },
 };
 
 function getSmartAQIClass(aqi) {
-  if (aqi <= 50) return 'aqi-good';
-  if (aqi <= 100) return 'aqi-moderate';
-  if (aqi <= 150) return 'aqi-unhealthy';
-  return 'aqi-hazardous';
+  if (aqi <= 50) return "aqi-good";
+  if (aqi <= 100) return "aqi-moderate";
+  if (aqi <= 150) return "aqi-unhealthy";
+  return "aqi-hazardous";
 }
 
 function getSmartBatteryClass(battery) {
-  if (battery >= 70) return 'battery-high';
-  if (battery >= 30) return 'battery-medium';
-  return 'battery-low';
+  if (battery >= 70) return "battery-high";
+  if (battery >= 30) return "battery-medium";
+  return "battery-low";
 }
 
 function syncSensorsWithSampleData() {
-  sensors.forEach(sensor => {
+  sensors.forEach((sensor) => {
     const updated = sampleSmartData[sensor.id];
     if (updated) {
       sensor.aqi = Math.round(updated.air_quality_index);
@@ -952,14 +957,18 @@ function syncSensorsWithSampleData() {
 function updateSmartStats(data) {
   const stats = Object.values(data);
   const totalSensors = stats.length;
-  const avgAQI = Math.round(stats.reduce((sum, s) => sum + s.air_quality_index, 0) / totalSensors);
+  const avgAQI = Math.round(
+    stats.reduce((sum, s) => sum + s.air_quality_index, 0) / totalSensors
+  );
   const totalReadings = stats.length; // This would be actual reading count in real implementation
-  const onlineSensors = stats.filter(s => s.battery_level > 0).length;
-  const avgBattery = Math.round(stats.reduce((sum, s) => sum + s.battery_level, 0) / totalSensors);
-  
-  const statsGrid = document.getElementById('smartStatsGrid');
+  const onlineSensors = stats.filter((s) => s.battery_level > 0).length;
+  const avgBattery = Math.round(
+    stats.reduce((sum, s) => sum + s.battery_level, 0) / totalSensors
+  );
+
+  const statsGrid = document.getElementById("smartStatsGrid");
   if (!statsGrid) return;
-  
+
   statsGrid.innerHTML = `
     <div class="smart-stat-card">
       <div class="smart-stat-value">${totalSensors}</div>
@@ -980,92 +989,118 @@ function updateSmartStats(data) {
   `;
 }
 
-
 function updateSmartSensors(data) {
-  const sensorsGrid = document.getElementById('smartSensorsGrid');
+  const sensorsGrid = document.getElementById("smartSensorsGrid");
   if (!sensorsGrid) return;
-  
-  sensorsGrid.innerHTML = '';
-  
+
+  sensorsGrid.innerHTML = "";
+
   // Handle both array and object data formats
   const sensors = Array.isArray(data) ? data : Object.values(data);
-  
-  sensors.forEach(sensor => {
-    const sensorCard = document.createElement('div');
-    sensorCard.className = 'smart-sensor-card';
-    
+
+  sensors.forEach((sensor) => {
+    const sensorCard = document.createElement("div");
+    sensorCard.className = "smart-sensor-card";
+
     // Extract city name from location or sensor_id
-    const city = sensor.city || sensor.sensor_id?.split('-')[1] || 'Unknown';
-    const location = sensor.location || 'Unknown Location';
-    
+    const city = sensor.city || sensor.sensor_id?.split("-")[1] || "Unknown";
+    const location = sensor.location || "Unknown Location";
+
     sensorCard.innerHTML = `
       <div class="smart-sensor-header">
-        <div class="smart-sensor-type">${sensor.sensor_type || 'Smart Sensor'}</div>
-        <div class="smart-sensor-category">${sensor.category || 'unknown'}</div>
+        <div class="smart-sensor-type">${
+          sensor.sensor_type || "Smart Sensor"
+        }</div>
+        <div class="smart-sensor-category">${sensor.category || "unknown"}</div>
       </div>
       <div class="smart-sensor-location">📍 ${city} - ${location}</div>
       <div class="smart-sensor-data">
         <div class="smart-data-item">
           <div class="smart-data-value">
             ${Math.round(sensor.air_quality_index || 0)}
-            <span class="aqi-indicator ${getSmartAQIClass(sensor.air_quality_index || 0)}">AQI</span>
+            <span class="aqi-indicator ${getSmartAQIClass(
+              sensor.air_quality_index || 0
+            )}">AQI</span>
           </div>
           <div class="smart-data-label">Air Quality Index</div>
         </div>
         <div class="smart-data-item">
-          <div class="smart-data-value">${(sensor.pm2_5 || 0).toFixed(1)} μg/m³</div>
+          <div class="smart-data-value">${(sensor.pm2_5 || 0).toFixed(
+            1
+          )} μg/m³</div>
           <div class="smart-data-label">PM2.5</div>
         </div>
         <div class="smart-data-item">
-          <div class="smart-data-value">${(sensor.pm10 || 0).toFixed(1)} μg/m³</div>
+          <div class="smart-data-value">${(sensor.pm10 || 0).toFixed(
+            1
+          )} μg/m³</div>
           <div class="smart-data-label">PM10</div>
         </div>
         <div class="smart-data-item">
-          <div class="smart-data-value">${(sensor.temperature || 0).toFixed(1)}°C</div>
+          <div class="smart-data-value">${(sensor.temperature || 0).toFixed(
+            1
+          )}°C</div>
           <div class="smart-data-label">Temperature</div>
         </div>
         <div class="smart-data-item">
-          <div class="smart-data-value">${(sensor.humidity || 0).toFixed(1)}%</div>
+          <div class="smart-data-value">${(sensor.humidity || 0).toFixed(
+            1
+          )}%</div>
           <div class="smart-data-label">Humidity</div>
         </div>
         <div class="smart-data-item">
           <div class="smart-data-value">
             ${(sensor.battery_level || 0).toFixed(1)}%
-            <span class="battery-indicator ${getSmartBatteryClass(sensor.battery_level || 0)}">Battery</span>
+            <span class="battery-indicator ${getSmartBatteryClass(
+              sensor.battery_level || 0
+            )}">Battery</span>
           </div>
           <div class="smart-data-label">Battery Level</div>
         </div>
         <div class="smart-data-item">
-          <div class="smart-data-value">${(sensor.pressure || 0).toFixed(1)} hPa</div>
+          <div class="smart-data-value">${(sensor.pressure || 0).toFixed(
+            1
+          )} hPa</div>
           <div class="smart-data-label">Pressure</div>
         </div>
         <div class="smart-data-item">
-          <div class="smart-data-value">${(sensor.wind_speed || 0).toFixed(1)} m/s</div>
+          <div class="smart-data-value">${(sensor.wind_speed || 0).toFixed(
+            1
+          )} m/s</div>
           <div class="smart-data-label">Wind Speed</div>
         </div>
       </div>
-      <div class="smart-sensor-timestamp">
-        <small>Last updated: ${new Date(sensor.timestamp || Date.now()).toLocaleString()}</small>
-      </div>
+
     `;
     sensorsGrid.appendChild(sensorCard);
   });
 }
 
 async function refreshSmartData() {
-  console.log('Refreshing smart sensor data...');
+  console.log("Refreshing smart sensor data...");
 
   // Randomize sample data
-  Object.keys(sampleSmartData).forEach(sensorId => {
+  Object.keys(sampleSmartData).forEach((sensorId) => {
     const sensor = sampleSmartData[sensorId];
-    sensor.air_quality_index = Math.max(0, sensor.air_quality_index + (Math.random() - 0.5) * 10);
+    sensor.air_quality_index = Math.max(
+      0,
+      sensor.air_quality_index + (Math.random() - 0.5) * 10
+    );
     sensor.pm2_5 = Math.max(0, sensor.pm2_5 + (Math.random() - 0.5) * 5);
     sensor.pm10 = Math.max(0, sensor.pm10 + (Math.random() - 0.5) * 8);
     sensor.temperature += (Math.random() - 0.5) * 2;
-    sensor.humidity = Math.max(0, Math.min(100, sensor.humidity + (Math.random() - 0.5) * 5));
-    sensor.battery_level = Math.max(0, sensor.battery_level - Math.random() * 0.5);
-    sensor.signal_strength = Math.max(0, Math.min(100, sensor.signal_strength + (Math.random() - 0.5) * 5));
-    sensor.timestamp = new Date().toISOString();
+    sensor.humidity = Math.max(
+      0,
+      Math.min(100, sensor.humidity + (Math.random() - 0.5) * 5)
+    );
+    sensor.battery_level = Math.max(
+      0,
+      sensor.battery_level - Math.random() * 0.5
+    );
+    sensor.signal_strength = Math.max(
+      0,
+      Math.min(100, sensor.signal_strength + (Math.random() - 0.5) * 5)
+    );
   });
 
   // Update UI
@@ -1081,31 +1116,40 @@ async function refreshSmartData() {
   for (const sensor of Object.values(sampleSmartData)) {
     try {
       await fetch(`/api/smart-sensors/${sensor.sensor_id}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(sensor)
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(sensor),
       });
     } catch (err) {
-      console.error('❌ Failed to send sensor to backend:', sensor.sensor_id, err);
+      console.error(
+        "❌ Failed to send sensor to backend:",
+        sensor.sensor_id,
+        err
+      );
     }
   }
 
-  const lastUpdate = document.getElementById('smartLastUpdate');
-  const statusIndicator = document.getElementById('smartStatusIndicator');
-  if (lastUpdate) lastUpdate.textContent = `Last updated: ${new Date().toLocaleTimeString()}`;
-  if (statusIndicator) statusIndicator.className = 'status-indicator status-online';
+  const lastUpdate = document.getElementById("smartLastUpdate");
+  const statusIndicator = document.getElementById("smartStatusIndicator");
+  if (lastUpdate)
+    lastUpdate.textContent = `Last updated: ${new Date().toLocaleTimeString()}`;
+  if (statusIndicator)
+    statusIndicator.className = "status-indicator status-online";
 
-  console.log('Smart sensor data refreshed successfully');
+  console.log("Smart sensor data refreshed successfully");
 }
 
-
 function exportSmartData() {
-  const csvContent = "data:text/csv;charset=utf-8," + 
-    "sensor_id,sensor_type,location,category,air_quality_index,pm2_5,pm10,temperature,humidity,pressure,wind_speed,wind_direction,battery_level,signal_strength,timestamp\n" +
-    Object.values(sampleSmartData).map(sensor => 
-      `${sensor.sensor_id},${sensor.sensor_type},${sensor.location},${sensor.category},${sensor.air_quality_index},${sensor.pm2_5},${sensor.pm10},${sensor.temperature},${sensor.humidity},${sensor.pressure},${sensor.wind_speed},${sensor.wind_direction},${sensor.battery_level},${sensor.signal_strength},${sensor.timestamp}`
-    ).join("\n");
-  
+  const csvContent =
+    "data:text/csv;charset=utf-8," +
+    "sensor_id,sensor_type,location,category,air_quality_index,pm2_5,pm10,temperature,humidity,pressure,wind_speed,wind_direction,battery_level,signal_strength\n" +
+    Object.values(sampleSmartData)
+      .map(
+        (sensor) =>
+          `${sensor.sensor_id},${sensor.sensor_type},${sensor.location},${sensor.category},${sensor.air_quality_index},${sensor.pm2_5},${sensor.pm10},${sensor.temperature},${sensor.humidity},${sensor.pressure},${sensor.wind_speed},${sensor.wind_direction},${sensor.battery_level},${sensor.signal_strength},${sensor.timestamp}`
+      )
+      .join("\n");
+
   const encodedUri = encodeURI(csvContent);
   const link = document.createElement("a");
   link.setAttribute("href", encodedUri);
@@ -1117,27 +1161,123 @@ function exportSmartData() {
 
 function toggleSmartAutoRefresh() {
   isSmartAutoRefresh = !isSmartAutoRefresh;
-  const status = document.getElementById('smartAutoRefreshStatus');
-  
+  const status = document.getElementById("smartAutoRefreshStatus");
+
   if (isSmartAutoRefresh) {
     smartAutoRefreshInterval = setInterval(refreshSmartData, 5000); // Refresh every 5 seconds
-    status.textContent = 'Auto refresh: ON (5s)';
+    status.textContent = "Auto refresh: ON (5s)";
   } else {
     clearInterval(smartAutoRefreshInterval);
-    status.textContent = 'Auto refresh: OFF';
+    status.textContent = "Auto refresh: OFF";
   }
 }
 
 // Simple sensor data with Kosovo city positions (all sensors positioned inside map borders)
 const sensors = [
-  { id: "smart-prishtina-001", city: "Prishtina", type: "urban", aqi: 45, x: 70, y: 35, pm2_5: 18.5, pm10: 28.2, temperature: 22.3, humidity: 65.1, battery: 87.5 },
-  { id: "smart-peja-002", city: "Peja", type: "industrial", aqi: 65, x: 25, y: 40, pm2_5: 28.7, pm10: 45.1, temperature: 25.1, humidity: 55.3, battery: 92.1 },
-  { id: "smart-prizren-003", city: "Prizren", type: "residential", aqi: 35, x: 45, y: 70, pm2_5: 15.2, pm10: 25.6, temperature: 20.1, humidity: 70.4, battery: 95.3 },
-  { id: "smart-gjakova-004", city: "Gjakova", type: "mobile", aqi: 55, x: 30, y: 60, pm2_5: 22.3, pm10: 35.8, temperature: 24.7, humidity: 60.2, battery: 78.9 },
-  { id: "smart-mitrovica-005", city: "Mitrovica", type: "aerial", aqi: 40, x: 60, y: 25, pm2_5: 15.2, pm10: 25.6, temperature: 20.1, humidity: 70.4, battery: 65.3 },
-  { id: "smart-ferizaj-006", city: "Ferizaj", type: "underground", aqi: 75, x: 65, y: 55, pm2_5: 35.8, pm10: 55.2, temperature: 28.5, humidity: 80.1, battery: 95.2 },
-  { id: "smart-gjilan-007", city: "Gjilan", type: "urban", aqi: 50, x: 80, y: 45, pm2_5: 20.1, pm10: 32.4, temperature: 23.8, humidity: 65.7, battery: 82.6 },
-  { id: "smart-vushtrri-008", city: "Vushtrri", type: "residential", aqi: 42, x: 60, y: 35, pm2_5: 17.8, pm10: 29.1, temperature: 21.5, humidity: 68.2, battery: 89.3 }
+  {
+    id: "smart-prishtina-001",
+    city: "Prishtina",
+    type: "urban",
+    aqi: 45,
+    x: 70,
+    y: 35,
+    pm2_5: 18.5,
+    pm10: 28.2,
+    temperature: 22.3,
+    humidity: 65.1,
+    battery: 87.5,
+  },
+  {
+    id: "smart-peja-002",
+    city: "Peja",
+    type: "industrial",
+    aqi: 65,
+    x: 25,
+    y: 40,
+    pm2_5: 28.7,
+    pm10: 45.1,
+    temperature: 25.1,
+    humidity: 55.3,
+    battery: 92.1,
+  },
+  {
+    id: "smart-prizren-003",
+    city: "Prizren",
+    type: "residential",
+    aqi: 35,
+    x: 45,
+    y: 70,
+    pm2_5: 15.2,
+    pm10: 25.6,
+    temperature: 20.1,
+    humidity: 70.4,
+    battery: 95.3,
+  },
+  {
+    id: "smart-gjakova-004",
+    city: "Gjakova",
+    type: "mobile",
+    aqi: 55,
+    x: 30,
+    y: 60,
+    pm2_5: 22.3,
+    pm10: 35.8,
+    temperature: 24.7,
+    humidity: 60.2,
+    battery: 78.9,
+  },
+  {
+    id: "smart-mitrovica-005",
+    city: "Mitrovica",
+    type: "aerial",
+    aqi: 40,
+    x: 60,
+    y: 25,
+    pm2_5: 15.2,
+    pm10: 25.6,
+    temperature: 20.1,
+    humidity: 70.4,
+    battery: 65.3,
+  },
+  {
+    id: "smart-ferizaj-006",
+    city: "Ferizaj",
+    type: "underground",
+    aqi: 75,
+    x: 65,
+    y: 55,
+    pm2_5: 35.8,
+    pm10: 55.2,
+    temperature: 28.5,
+    humidity: 80.1,
+    battery: 95.2,
+  },
+  {
+    id: "smart-gjilan-007",
+    city: "Gjilan",
+    type: "urban",
+    aqi: 50,
+    x: 80,
+    y: 45,
+    pm2_5: 20.1,
+    pm10: 32.4,
+    temperature: 23.8,
+    humidity: 65.7,
+    battery: 82.6,
+  },
+  {
+    id: "smart-vushtrri-008",
+    city: "Vushtrri",
+    type: "residential",
+    aqi: 42,
+    x: 60,
+    y: 35,
+    pm2_5: 17.8,
+    pm10: 29.1,
+    temperature: 21.5,
+    humidity: 68.2,
+    battery: 89.3,
+  },
 ];
 
 function renderKosovoMap() {
@@ -1149,30 +1289,29 @@ function renderKosovoMap() {
 function renderMarkers() {
   const mapMarkers = document.getElementById("mapMarkers");
   if (!mapMarkers) return;
-  
+
   mapMarkers.innerHTML = "";
 
-  sensors.forEach(sensor => {
+  sensors.forEach((sensor) => {
     const marker = document.createElement("div");
     marker.className = `marker ${sensor.type}`;
     marker.style.left = `${sensor.x}%`;
     marker.style.top = `${sensor.y}%`;
     marker.title = `${sensor.city} - AQI: ${sensor.aqi}`;
-    
+
     // Add click event to show sensor details
-    marker.addEventListener('click', () => {
+    marker.addEventListener("click", () => {
       showSensorDetails(sensor);
     });
-    
+
     mapMarkers.appendChild(marker);
   });
 }
 
-
 function showSensorDetails(sensor) {
   // Create a more detailed modal instead of alert
-  const modal = document.createElement('div');
-  modal.className = 'sensor-modal';
+  const modal = document.createElement("div");
+  modal.className = "sensor-modal";
   modal.innerHTML = `
     <div class="modal-content">
       <div class="modal-header">
@@ -1187,7 +1326,9 @@ function showSensorDetails(sensor) {
         </div>
         <div class="sensor-detail-section">
           <h4>🌡️ Air Quality</h4>
-          <p><strong>AQI:</strong> <span class="aqi-value ${getSmartAQIClass(sensor.aqi)}">${sensor.aqi}</span></p>
+          <p><strong>AQI:</strong> <span class="aqi-value ${getSmartAQIClass(
+            sensor.aqi
+          )}">${sensor.aqi}</span></p>
           <p><strong>PM2.5:</strong> ${sensor.pm2_5} μg/m³</p>
           <p><strong>PM10:</strong> ${sensor.pm10} μg/m³</p>
         </div>
@@ -1198,15 +1339,17 @@ function showSensorDetails(sensor) {
         </div>
         <div class="sensor-detail-section">
           <h4>🔧 Status</h4>
-          <p><strong>Battery:</strong> <span class="battery-indicator ${getSmartBatteryClass(sensor.battery)}">${sensor.battery}%</span></p>
+          <p><strong>Battery:</strong> <span class="battery-indicator ${getSmartBatteryClass(
+            sensor.battery
+          )}">${sensor.battery}%</span></p>
           <p><strong>Last Update:</strong> ${new Date().toLocaleString()}</p>
         </div>
       </div>
     </div>
   `;
-  
+
   // Add modal styles
-  const style = document.createElement('style');
+  const style = document.createElement("style");
   style.textContent = `
     .sensor-modal {
       position: fixed;
@@ -1269,14 +1412,14 @@ function showSensorDetails(sensor) {
   `;
   document.head.appendChild(style);
   document.body.appendChild(modal);
-  
+
   // Close modal functionality
-  modal.querySelector('.close-modal').addEventListener('click', () => {
+  modal.querySelector(".close-modal").addEventListener("click", () => {
     document.body.removeChild(modal);
     document.head.removeChild(style);
   });
-  
-  modal.addEventListener('click', (e) => {
+
+  modal.addEventListener("click", (e) => {
     if (e.target === modal) {
       document.body.removeChild(modal);
       document.head.removeChild(style);
@@ -1286,14 +1429,16 @@ function showSensorDetails(sensor) {
 
 function updateMapStatistics() {
   const totalSensors = sensors.length;
-  const avgAQI = Math.round(sensors.reduce((sum, s) => sum + s.aqi, 0) / totalSensors);
-  const citiesCovered = new Set(sensors.map(s => s.city)).size;
-  
+  const avgAQI = Math.round(
+    sensors.reduce((sum, s) => sum + s.aqi, 0) / totalSensors
+  );
+  const citiesCovered = new Set(sensors.map((s) => s.city)).size;
+
   // Update statistics display
-  const totalElement = document.getElementById('totalSensorsOnMap');
-  const avgElement = document.getElementById('avgAQIOnMap');
-  const citiesElement = document.getElementById('citiesCovered');
-  
+  const totalElement = document.getElementById("totalSensorsOnMap");
+  const avgElement = document.getElementById("avgAQIOnMap");
+  const citiesElement = document.getElementById("citiesCovered");
+
   if (totalElement) totalElement.textContent = totalSensors;
   if (avgElement) avgElement.textContent = avgAQI;
   if (citiesElement) citiesElement.textContent = citiesCovered;
@@ -1301,54 +1446,56 @@ function updateMapStatistics() {
 
 function startSmartSimulation() {
   // This would start the actual smart sensor simulation
-  alert('🚀 Smart Virtual Sensor Simulation Started!\n\nTo run the actual simulation, execute:\ncd backend && python smart_virtual_sensors.py');
+  alert(
+    "🚀 Smart Virtual Sensor Simulation Started!\n\nTo run the actual simulation, execute:\ncd backend && python smart_virtual_sensors.py"
+  );
   refreshSmartData();
 }
 
 // Smart sensors event listeners - moved to main DOMContentLoaded
 function initializeSmartSensors() {
-  console.log('Initializing smart sensors...');
-  
+  console.log("Initializing smart sensors...");
+
   // Smart sensors controls
-  const smartRefreshBtn = document.getElementById('smart-refresh');
-  const smartExportBtn = document.getElementById('smart-export');
-  const smartAutoRefreshBtn = document.getElementById('smart-auto-refresh');
-  const smartStartBtn = document.getElementById('smart-start-simulation');
-  
-  console.log('Smart sensor buttons found:', {
+  const smartRefreshBtn = document.getElementById("smart-refresh");
+  const smartExportBtn = document.getElementById("smart-export");
+  const smartAutoRefreshBtn = document.getElementById("smart-auto-refresh");
+  const smartStartBtn = document.getElementById("smart-start-simulation");
+
+  console.log("Smart sensor buttons found:", {
     refresh: !!smartRefreshBtn,
     export: !!smartExportBtn,
     autoRefresh: !!smartAutoRefreshBtn,
-    start: !!smartStartBtn
+    start: !!smartStartBtn,
   });
-  
+
   if (smartRefreshBtn) {
-    smartRefreshBtn.addEventListener('click', refreshSmartData);
-    console.log('Refresh button event listener added');
+    smartRefreshBtn.addEventListener("click", refreshSmartData);
+    console.log("Refresh button event listener added");
   }
-  
+
   if (smartExportBtn) {
-    smartExportBtn.addEventListener('click', exportSmartData);
-    console.log('Export button event listener added');
+    smartExportBtn.addEventListener("click", exportSmartData);
+    console.log("Export button event listener added");
   }
-  
+
   if (smartAutoRefreshBtn) {
-    smartAutoRefreshBtn.addEventListener('click', toggleSmartAutoRefresh);
-    console.log('Auto refresh button event listener added');
+    smartAutoRefreshBtn.addEventListener("click", toggleSmartAutoRefresh);
+    console.log("Auto refresh button event listener added");
   }
-  
+
   if (smartStartBtn) {
-    smartStartBtn.addEventListener('click', startSmartSimulation);
-    console.log('Start simulation button event listener added');
+    smartStartBtn.addEventListener("click", startSmartSimulation);
+    console.log("Start simulation button event listener added");
   }
-  
+
   // Initialize smart sensors data
-  console.log('Calling refreshSmartData...');
+  console.log("Calling refreshSmartData...");
   refreshSmartData();
-  
+
   // Render Kosovo map
-  console.log('Rendering Kosovo map...');
+  console.log("Rendering Kosovo map...");
   renderKosovoMap();
-  
-  console.log('Smart sensors initialization complete');
+
+  console.log("Smart sensors initialization complete");
 }
